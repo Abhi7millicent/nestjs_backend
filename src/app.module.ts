@@ -6,6 +6,9 @@ import { MongooseModule } from '@nestjs/mongoose';
 import * as dotenv from 'dotenv';
 import { ConfigModule } from '@nestjs/config';
 import { AthenticationModule } from './authentication/authentication.module';
+import { CountryModule } from './country/country.module';
+import { StateModule } from './state/state.module';
+import { CityModule } from './city/city.module';
 
 dotenv.config();
 @Module({
@@ -15,7 +18,7 @@ dotenv.config();
       isGlobal: true,
     }),
     MongooseModule.forRoot(process.env.DB_URI), 
-    UserModule, AthenticationModule
+    UserModule, AthenticationModule, CountryModule, StateModule, CityModule
   ],
   controllers: [AppController],
   providers: [AppService],

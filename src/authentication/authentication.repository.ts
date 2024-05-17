@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { Model } from 'mongoose';
 import { InjectModel } from '@nestjs/mongoose';
-import  {User}  from '../user/schema/user.schema';
-import { GenericRepository } from './generic.repository';
+import  {User}  from '../user/user.schema';
+import { GenericRepository } from '../repositories/generic.repository';
 
 @Injectable()
 export class AuthenticationRepository extends GenericRepository<User> {
@@ -10,7 +10,4 @@ export class AuthenticationRepository extends GenericRepository<User> {
     super(userModel);
   }
 
-  async findByMail(mail: string): Promise<User> {
-    return this.model.findOne({ mail }).exec();
-  }
 }
