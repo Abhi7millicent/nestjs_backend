@@ -15,18 +15,15 @@ export abstract class GenericRepository<T> {
         return this.model.create(entity);
     }
 
-    // async findAll(): Promise<T[]> {
-    //     return this.model.find().exec();
-    // }
-
     async findAll(criteria: FilterQuery<T> = {}, options: FindAllOptions<T> = {}): Promise<T[]> {
         let query: any;
 
-        if (criteria){
+        if (criteria) {
             query = this.model.find(criteria);
-        }else{
+        } else {
             query = this.model.find();
         }
+
         if (options.sort) {
             query = query.sort(options.sort);
         }
@@ -42,21 +39,58 @@ export abstract class GenericRepository<T> {
         if (options.populate) {
             query = query.populate(options.populate);
         }
-
-        return query.exec();
+        return await query.exec(); // Ensure await is used here
     }
-
-    // async findAllBy(criteria: FilterQuery<T> = {}): Promise<T[]> {
-    //     return this.model.find(criteria).exec();
-    // }
 
     async findById(id: string): Promise<T> {
         return this.model.findById(id).exec();
     }
 
-    async findOne(criteria: FilterQuery<T>): Promise<T | null> {
-        return this.model.findOne(criteria).exec();
+    // async findOne(criteria: FilterQuery<T>): Promise<T | null> {
+    //     return this.model.findOne(criteria).exec();
+    // }
+
+    async findOne(criteria: FilterQuery<T> = {}, options: FindAllOptions<T> = {}): Promise<T | null> {
+        let query: any;
+    
+        if (criteria) {
+            query = this.model.findOne(criteria);
+        } else {
+            query = this.model.findOne();
+        }
+    
+        if (options.select) {
+            query = query.select(options.select);
+        }
+        if (options.populate) {
+            query = query.populate(options.populate);
+        }
+        return await query.exec(); // Ensure await is used here
     }
+
+    async findOneOrFail(criteria: FilterQuery<T> = {}, options: FindAllOptions<T> = {}): Promise<T> {
+        let query: any;
+    
+        if (criteria) {
+            query = this.model.findOne(criteria);
+        } else {
+            query = this.model.findOne();
+        }
+    
+        if (options.select) {
+            query = query.select(options.select);
+        }
+        if (options.populate) {
+            query = query.populate(options.populate);
+        }
+    
+        const result = await query.exec();
+        if (!result) {
+            throw new Error('Document not found');
+        }
+        return result;
+    }
+    
 
     async update(id: string, entity: Partial<T>): Promise<T> {
         return this.model.findByIdAndUpdate(id, entity, { new: true }).exec();

@@ -8,6 +8,7 @@ export class AuthenticationService {
     constructor(private readonly authenticationRepository: AuthenticationRepository) {}
 
     async validateUser(mail: string, password: string): Promise<User> {
+        try{
         const user = await this.authenticationRepository.findOne({ mail: mail });
         if (!user) {
             return null; // User not found
@@ -16,9 +17,9 @@ export class AuthenticationService {
         if (!isPasswordValid) {
             return null; // Invalid password
         }
-        // if(password !== user.password){
-        // return null
-        // }
         return user;
+    } catch (error) {
+        return null; // User not found or other error
+    }
     }
 }
