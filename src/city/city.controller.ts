@@ -1,8 +1,10 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, NotFoundException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, NotFoundException, UseGuards } from '@nestjs/common';
 import { City } from './city.schema';
 import { CityService } from './city.service';
+import { JwtAuthGuard } from 'src/authentication/guards/jwt.auth.guard';
 
 @Controller('cities')
+@UseGuards(JwtAuthGuard)
 export class CityController {
   constructor(private readonly cityService: CityService) {}
 

@@ -5,6 +5,7 @@ import { AuthenticationService } from './authentication.service';
 import { JwtModule } from '@nestjs/jwt';
 import { User, UserSchema } from '../user/user.schema';
 import { AuthenticationRepository } from './authentication.repository';
+import { JwtAuthGuard } from './guards/jwt.auth.guard';
 
 @Module({
     imports: [
@@ -15,6 +16,7 @@ import { AuthenticationRepository } from './authentication.repository';
         }),
     ],
     controllers: [AuthenticationController],
-    providers: [AuthenticationService, AuthenticationRepository],
+    providers: [AuthenticationService, AuthenticationRepository, JwtAuthGuard],
+    exports: [JwtAuthGuard, JwtModule],
 })
 export class AthenticationModule {}
