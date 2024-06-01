@@ -6,6 +6,6 @@ async function bootstrap() {
   dotenv.config(); // Load environment variables from .env file
   const app = await NestFactory.create(AppModule);
   app.setGlobalPrefix('api');
-  await app.listen(process.env.PORT ); 
+  await app.listen(process.env.PORT); 
 }
 bootstrap();
