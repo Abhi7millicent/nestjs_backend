@@ -19,7 +19,7 @@ export class CountryService {
   }
 
   async updateCountry(id: string, country: Partial<Country>): Promise<Country | null> {
-    return this.countryRepository.update(id, country);
+    return this.countryRepository.update1(id, country);
   }
 
   async deleteCountry(id: string): Promise<Country | null> {

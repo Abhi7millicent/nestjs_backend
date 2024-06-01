@@ -10,7 +10,7 @@ export class City extends Document {
   name: string;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'State' })
-  state: MongooseSchema.Types.ObjectId; // Reference to State
+  state: MongooseSchema.Types.ObjectId; 
 }
 
 export const CitySchema = SchemaFactory.createForClass(City);

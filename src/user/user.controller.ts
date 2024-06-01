@@ -22,7 +22,10 @@ export class UserController {
 
     @Put(':id')
     async updateUser(@Param('id') id: string, @Body() updateUserDto: any) {
-        return await this.userService.updateUser(id, updateUserDto);
+        // return Object.keys(updateUserDto).length;
+        const update = await this.userService.updateUser(id, updateUserDto);
+        return update;
+
     }
 
     @Delete(':id')

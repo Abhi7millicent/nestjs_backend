@@ -2,6 +2,7 @@ import { Controller, Get, Post, Put, Delete, Param, Body, NotFoundException, Use
 import { City } from './city.schema';
 import { CityService } from './city.service';
 import { JwtAuthGuard } from 'src/authentication/guards/jwt.auth.guard';
+import { PopulatedDoc } from 'mongoose';
 
 @Controller('cities')
 @UseGuards(JwtAuthGuard)
@@ -19,11 +20,11 @@ export class CityController {
   }
 
   @Get('state/:stateId')
-  async getStatesByCountryId(@Param('stateId') stateId: string): Promise<City[]> {
+  async getStatesByCountryId(@Param('stateId') stateId: string): Promise<PopulatedDoc<City>[]> {
     return this.cityService.getCitiesByStateId(stateId);
   }
   @Get('city/:name')
-  async getstateByCity(@Param('name') name: string): Promise<City | null> {
+  async getstateByCity(@Param('name') name: string): Promise<PopulatedDoc<City | null>> {
     return this.cityService.getstateByCity(name);
   }
 

@@ -29,7 +29,7 @@ export class StateService {
   }
 
   async updateState(id: string, state: Partial<State>): Promise<State | null> {
-    return this.stateRepository.update(id, state);
+    return this.stateRepository.update1(id, state);
   }
 
   async deleteState(id: string): Promise<State | null> {

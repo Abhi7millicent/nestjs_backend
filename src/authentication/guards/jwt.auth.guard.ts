@@ -13,17 +13,17 @@ export class JwtAuthGuard implements CanActivate {
     if (!token) {
       throw new UnauthorizedException('Token not found');
     }
-
+    let payload:any;
     try {
-      const payload = this.jwtService.verify(token);
+       payload = this.jwtService.verify(token);
+    } catch (error) {
+      throw new UnauthorizedException('Invalid or expired token');
+    }
       if (payload.role !== 'teamLeader') {
         throw new UnauthorizedException('Insufficient role');
       }
       request.user = payload;
-    } catch (error) {
-      throw new UnauthorizedException('Invalid or expired token');
-    }
-
+   
     return true;
   }
 

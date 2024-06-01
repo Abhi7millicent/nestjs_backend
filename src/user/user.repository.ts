@@ -10,5 +10,4 @@ export class UserRepository extends GenericRepository<User> {
     super(userModel);
   }
 
- 
 }

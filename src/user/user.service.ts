@@ -24,10 +24,12 @@ export class UserService {
     }
 
     async updateUser(id: string, updateUserDto: any) {
-        return await this.userRepository.update(id, updateUserDto);
+        // return await this.userRepository.update(id, updateUserDto);
+        return await this.userRepository.update({ _id: id }, { $set: updateUserDto });
     }
 
     async deleteUser(id: string) {
         return await this.userRepository.delete(id);
     }
+    
 }

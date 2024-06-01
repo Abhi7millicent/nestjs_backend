@@ -9,6 +9,7 @@ import { AthenticationModule } from './authentication/authentication.module';
 import { CountryModule } from './country/country.module';
 import { StateModule } from './state/state.module';
 import { CityModule } from './city/city.module';
+import { ProcessBasicDataModule } from './process.basic.data/process.basic.data.module';
 
 dotenv.config();
 @Module({
@@ -18,7 +19,7 @@ dotenv.config();
       isGlobal: true,
     }),
     MongooseModule.forRoot(process.env.DB_URI), 
-    UserModule, AthenticationModule, CountryModule, StateModule, CityModule
+    UserModule, AthenticationModule, CountryModule, StateModule, CityModule, ProcessBasicDataModule
   ],
   controllers: [AppController],
   providers: [AppService],
