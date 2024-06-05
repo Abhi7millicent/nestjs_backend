@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Put, Delete, Param, Body } from '@nestjs/common';
 import { ProcessBasicDataService } from './process.basic.data.service';
 import { ProcessBasicData } from './process.basic.data.schema';
-import { AnalyticalDashboardsDto, CreateActivityDto, KpisDto, QueriesAndResponsesDto, ReportsDto, WorkflowsDto } from 'src/dto/process.dto';
+import { AnalyticalDashboardsDto, ActivityDto, KpisDto, QueriesAndResponsesDto, ReportsDto, WorkflowsDto } from 'src/dto/process.dto';
 import { ProcessActivityService } from './process.basic.data.activity.service';
 import { ProcessWorkflowService } from './process.basic.data.workflow.service';
 
@@ -46,8 +46,8 @@ export class ProcessBasicDataController {
   // }
 
   @Post('activities/:id')
-    async addActivity(@Param('id') id: string, @Body() createActivityDto: CreateActivityDto) {
-    return this.processActivityService.addActivity(id, createActivityDto);
+    async addActivity(@Param('id') id: string, @Body() activityDto: ActivityDto) {
+    return this.processActivityService.addActivity(id, activityDto);
   }
 
   @Put(':processId/activities/:activityId')

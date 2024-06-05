@@ -40,8 +40,8 @@ let ProcessBasicDataController = class ProcessBasicDataController {
     async delete(id) {
         return this.processBasicDataService.deleteProcessBasicData(id);
     }
-    async addActivity(id, createActivityDto) {
-        return this.processActivityService.addActivity(id, createActivityDto);
+    async addActivity(id, activityDto) {
+        return this.processActivityService.addActivity(id, activityDto);
     }
     async updateActivity(processId, activityId, activityData) {
         return this.processActivityService.updateActivity(processId, activityId, activityData);
@@ -106,7 +106,7 @@ __decorate([
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, process_dto_1.CreateActivityDto]),
+    __metadata("design:paramtypes", [String, process_dto_1.ActivityDto]),
     __metadata("design:returntype", Promise)
 ], ProcessBasicDataController.prototype, "addActivity", null);
 __decorate([

@@ -185,8 +185,8 @@ declare class ProcessControl {
 }
 export declare class ProcessBasicData extends Document {
     _id: MongooseSchema.Types.ObjectId;
-    function_id: string;
-    sub_function_id: string;
+    function_id: string[];
+    sub_function_id: string[];
     title: string;
     version_type: string;
     version_id: string;

@@ -9,20 +9,20 @@ class GenericRepository {
     async create(entity) {
         return this.model.create(entity);
     }
-    async createByKey(mainDocId, docArrayNames, subDocData, metadataFields = { lastModifiedBy: 'last_modified_by', lastModifiedOn: 'last_modified_on' }) {
-        const mainDoc = await this.model.findById(mainDocId).exec();
-        if (!mainDoc) {
+    async createByKey(id, keyPath, data) {
+        const value = await this.model.findById(id).exec();
+        if (!value) {
             throw new common_1.NotFoundException('Main document not found');
         }
-        let currentObj = mainDoc;
+        let currentObj = value;
         let updatePath = '';
-        for (const arrayName of docArrayNames) {
+        for (const arrayName of keyPath) {
             if (!currentObj[arrayName]) {
                 throw new common_1.NotFoundException(`Path not found: ${arrayName}`);
             }
             if (Array.isArray(currentObj[arrayName])) {
-                currentObj[arrayName].push(subDocData);
-                updatePath = docArrayNames.slice(0, docArrayNames.indexOf(arrayName) + 1).join('.');
+                currentObj[arrayName].push(data);
+                updatePath = keyPath.slice(0, keyPath.indexOf(arrayName) + 1).join('.');
                 break;
             }
             else if (typeof currentObj[arrayName] === 'object') {
@@ -33,13 +33,12 @@ class GenericRepository {
             }
         }
         if (!updatePath) {
-            throw new Error(`Array ${docArrayNames[docArrayNames.length - 1]} not found or is not an array`);
+            throw new Error(`Array ${keyPath[keyPath.length - 1]} not found or is not an array`);
         }
-        mainDoc[metadataFields.lastModifiedBy] = 'editor';
-        mainDoc[metadataFields.lastModifiedOn] = new Date();
-        mainDoc.markModified(updatePath);
-        await mainDoc.save();
-        return mainDoc;
+        value.markModified(updatePath);
+        await value.save();
+        const pushedPart = keyPath.reduce((obj, key) => obj[key], value);
+        return pushedPart[pushedPart.length - 1];
     }
     async update(criteria, update) {
         try {
@@ -60,15 +59,15 @@ class GenericRepository {
             throw new Error(`Error updating document: ${error}`);
         }
     }
-    async updateByKey(mainDocId, subDocArrayPath, subDocId, subDocData, metadataFields = { lastModifiedBy: 'last_modified_by', lastModifiedOn: 'last_modified_on' }) {
-        const mainDoc = await this.model.findById(mainDocId).exec();
-        if (!mainDoc) {
+    async updateByKey(id, keyPath, subId, data) {
+        const value = await this.model.findById(id).exec();
+        if (!value) {
             throw new common_1.NotFoundException('Main document not found');
         }
-        let currentObj = mainDoc;
+        let currentObj = value;
         let parentObj = null;
         let lastKey = '';
-        for (const key of subDocArrayPath) {
+        for (const key of keyPath) {
             if (!currentObj[key]) {
                 throw new common_1.NotFoundException(`Path not found: ${key}`);
             }
@@ -77,39 +76,37 @@ class GenericRepository {
             lastKey = key;
         }
         if (!Array.isArray(currentObj)) {
-            throw new Error(`The path does not point to an array: ${subDocArrayPath.join('.')}`);
+            throw new Error(`The path does not point to an array: ${keyPath.join('.')}`);
         }
-        const subDocIndex = currentObj.findIndex((doc) => doc._id.toString() === subDocId);
+        const subDocIndex = currentObj.findIndex((doc) => doc._id.toString() === subId);
         if (subDocIndex === -1) {
             throw new common_1.NotFoundException('Sub-document not found');
         }
-        const subDoc = currentObj[subDocIndex];
-        Object.assign(subDoc, subDocData);
-        mainDoc[metadataFields.lastModifiedBy] = subDocData.last_modified_by || mainDoc[metadataFields.lastModifiedBy];
-        mainDoc[metadataFields.lastModifiedOn] = new Date();
-        parentObj[lastKey] = currentObj;
-        mainDoc.markModified(subDocArrayPath.join('.'));
-        return mainDoc.save();
+        const updatePath = [...keyPath, subDocIndex.toString()].join('.');
+        const updateObject = {
+            [`${updatePath}`]: { ...currentObj[subDocIndex], ...data },
+        };
+        return await this.model.updateOne({ _id: id }, { $set: updateObject }).exec();
     }
     async delete(id) {
         return this.model.findByIdAndDelete(id).exec();
     }
-    async deleteByKey(mainDocId, docArrayNames, subDocDataId, metadataFields = { lastModifiedBy: 'last_modified_by', lastModifiedOn: 'last_modified_on' }) {
-        const mainDoc = await this.model.findById(mainDocId).exec();
-        if (!mainDoc) {
+    async deleteByKey(id, keyPath, subId) {
+        const value = await this.model.findById(id).exec();
+        if (!value) {
             throw new common_1.NotFoundException('Main document not found');
         }
-        let currentObj = mainDoc;
+        let currentObj = value;
         let updatePath = '';
-        for (const arrayName of docArrayNames) {
+        for (const arrayName of keyPath) {
             if (!currentObj[arrayName]) {
                 throw new common_1.NotFoundException(`Path not found: ${arrayName}`);
             }
             if (Array.isArray(currentObj[arrayName])) {
-                const subDocIndex = currentObj[arrayName].findIndex((item) => item._id && item._id.toString() === subDocDataId);
+                const subDocIndex = currentObj[arrayName].findIndex((item) => item._id && item._id.toString() === subId);
                 if (subDocIndex !== -1) {
                     currentObj[arrayName].splice(subDocIndex, 1);
-                    updatePath = docArrayNames.slice(0, docArrayNames.indexOf(arrayName) + 1).join('.');
+                    updatePath = keyPath.slice(0, keyPath.indexOf(arrayName) + 1).join('.');
                     break;
                 }
                 else {
@@ -124,34 +121,32 @@ class GenericRepository {
             }
         }
         if (!updatePath) {
-            throw new Error(`Array ${docArrayNames[docArrayNames.length - 1]} not found or is not an array`);
+            throw new Error(`Array ${keyPath[keyPath.length - 1]} not found or is not an array`);
         }
-        mainDoc[metadataFields.lastModifiedBy] = 'editor';
-        mainDoc[metadataFields.lastModifiedOn] = new Date();
-        mainDoc.markModified(updatePath);
-        await mainDoc.save();
-        return mainDoc;
+        value.markModified(updatePath);
+        await value.save();
+        return value;
     }
     async softDelete(id) {
         return this.model.findByIdAndUpdate(id, { deleted: true }, { new: true }).exec();
     }
-    async softDeleteByKey(mainDocId, docArrayNames, subDocId, metadataFields = { lastModifiedBy: 'last_modified_by', lastModifiedOn: 'last_modified_on' }) {
-        const mainDoc = await this.model.findById(mainDocId).exec();
-        if (!mainDoc) {
+    async softDeleteByKey(id, keyPath, subId) {
+        const value = await this.model.findById(id).exec();
+        if (!value) {
             throw new common_1.NotFoundException('Main document not found');
         }
-        let currentObj = mainDoc;
-        docArrayNames.forEach((arrayName, index) => {
+        let currentObj = value;
+        keyPath.forEach((arrayName, index) => {
             if (!currentObj[arrayName]) {
                 throw new common_1.NotFoundException(`Path not found: ${arrayName}`);
             }
             if (Array.isArray(currentObj[arrayName])) {
-                const subDocIndex = currentObj[arrayName].findIndex((item) => item._id && item._id.toString() === subDocId);
+                const subDocIndex = currentObj[arrayName].findIndex((item) => item._id && item._id.toString() === subId);
                 if (subDocIndex !== -1) {
                     console.log("flg:", currentObj[arrayName][subDocIndex].is_deleted);
                     currentObj[arrayName][subDocIndex].is_deleted = !currentObj[arrayName][subDocIndex].is_deleted;
                     console.log("flg1:", currentObj[arrayName][subDocIndex].is_deleted);
-                    mainDoc.markModified(docArrayNames.slice(0, index + 1).join('.'));
+                    value.markModified(keyPath.slice(0, index + 1).join('.'));
                     return;
                 }
                 else {
@@ -165,13 +160,8 @@ class GenericRepository {
                 throw new Error(`${arrayName} is not an array or an object`);
             }
         });
-        mainDoc[metadataFields.lastModifiedBy] = 'Editor';
-        mainDoc[metadataFields.lastModifiedOn] = new Date();
-        await mainDoc.save();
-        return mainDoc;
-    }
-    async restore(id) {
-        return this.model.findByIdAndUpdate(id, { deleted: false }, { new: true }).exec();
+        await value.save();
+        return value;
     }
     async findAll(criteria = {}, options = {}) {
         let query;
@@ -216,6 +206,9 @@ class GenericRepository {
             query = query.populate(options.populate);
         }
         return await query.exec();
+    }
+    async restore(id) {
+        return this.model.findByIdAndUpdate(id, { deleted: false }, { new: true }).exec();
     }
     async findOneOrFail(criteria = {}, options = {}) {
         let query;

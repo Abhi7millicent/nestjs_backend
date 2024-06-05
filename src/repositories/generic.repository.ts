@@ -13,60 +13,78 @@ interface FindAllOptions<T> extends QueryOptions {
 export abstract class GenericRepository<T> {
     constructor(protected readonly model: Model<T>) {}
 
+    /**
+     * The async create method adds a new document to a MongoDB database using Mongoose. Here’s a concise description of its functionality:
+     * @param entity  Takes a partial document (entity) containing the data to be created.
+     * @returns 
+     */
     async create(entity: Partial<T>): Promise<T> {
         return this.model.create(entity);
     }
 
+    /**
+     * The createByKey function is an asynchronous method designed to update a nested array within a MongoDB document using Mongoose. It performs the following tasks: This function allows dynamic and flexible updates to deeply nested arrays within documents.
+     * @param id : processId 
+     * @param keyPath : path to insert data
+     * @param data : data to update
+     * @returns 
+     */
     async createByKey(
-      mainDocId: string,
-      docArrayNames: string[],
-      subDocData: any,
-      metadataFields: { lastModifiedBy: string; lastModifiedOn: string } = { lastModifiedBy: 'last_modified_by', lastModifiedOn: 'last_modified_on' }
-    ): Promise<any> {
-      const mainDoc = await this.model.findById(mainDocId).exec();
-      if (!mainDoc) {
-        throw new NotFoundException('Main document not found');
+      id: string,
+      keyPath: string[],
+      data: any,
+  ): Promise<any> {
+      const value = await this.model.findById(id).exec();
+      if (!value) {
+          throw new NotFoundException('Main document not found');
       }
-    
-      let currentObj = mainDoc;
+      
+      let currentObj = value;
       let updatePath = '';
-    
-      for (const arrayName of docArrayNames) {
-        if (!currentObj[arrayName]) {
-          throw new NotFoundException(`Path not found: ${arrayName}`);
-        }
-        if (Array.isArray(currentObj[arrayName])) {
-          currentObj[arrayName].push(subDocData);
-          updatePath = docArrayNames.slice(0, docArrayNames.indexOf(arrayName) + 1).join('.');
-          break;
-        } else if (typeof currentObj[arrayName] === 'object') {
-          currentObj = currentObj[arrayName];
-        } else {
-          throw new Error(`${arrayName} is not an array or an object`);
-        }
+      
+      for (const arrayName of keyPath) {
+          if (!currentObj[arrayName]) {
+              throw new NotFoundException(`Path not found: ${arrayName}`);
+          }
+          if (Array.isArray(currentObj[arrayName])) {
+              currentObj[arrayName].push(data);
+              updatePath = keyPath.slice(0, keyPath.indexOf(arrayName) + 1).join('.');
+              break;
+          } else if (typeof currentObj[arrayName] === 'object') {
+              currentObj = currentObj[arrayName];
+          } else {
+              throw new Error(`${arrayName} is not an array or an object`);
+          }
       }
-    
+      
       if (!updatePath) {
-        throw new Error(`Array ${docArrayNames[docArrayNames.length - 1]} not found or is not an array`);
+          throw new Error(`Array ${keyPath[keyPath.length - 1]} not found or is not an array`);
       }
-    
-      mainDoc[metadataFields.lastModifiedBy] = 'editor'; 
-      mainDoc[metadataFields.lastModifiedOn] = new Date();
-    
-      mainDoc.markModified(updatePath);
-    
-      await mainDoc.save();
-    
-      return mainDoc;
-    }
+      
+      value.markModified(updatePath);
+      
+      await value.save();
+      
+      // Extract the part of the document that was pushed
+      const pushedPart = keyPath.reduce((obj, key) => obj[key], value);
+      
+      return pushedPart[pushedPart.length - 1];
+  }
+  
 
+    /**
+     * The update function is an asynchronous method that updates a document in a MongoDB collection based on provided criteria. Here's a summary:
+     * @param criteria : Specifies the filter for identifying the document(s) to update.
+     * @param update : Contains the partial data to update in the document.
+     * @returns 
+     */
     async update(criteria: FilterQuery<T>, update: Partial<T>): Promise<updateResponseDto & { updatedData: T }> {
       try {
         const result = await this.model.findOneAndUpdate(criteria, update, { new: true }).exec();
     
         if (!result) {
           throw new NotFoundException('Document not found');
-        }
+        } 
     
         const responseDto: updateResponseDto = {
           acknowledged: true,
@@ -83,42 +101,29 @@ export abstract class GenericRepository<T> {
     }
     
 
-    // async update(criteria: FilterQuery<T>, update: Partial<T>): Promise<updateResponseDto> {
-    //   try {
-    //       const result = await this.model.updateOne(criteria, update).exec();
-  
-    //       const responseDto: updateResponseDto = {
-    //           acknowledged: result.acknowledged,
-    //           modifiedCount: result.modifiedCount,
-    //           upsertedId: result.upsertedId ? result.upsertedId.toString() : null,
-    //           upsertedCount: result.upsertedCount || 0,
-    //           matchedCount: result.matchedCount
-    //       };
-  
-    //       return responseDto;
-    //   } catch (error) {
-    //       throw new Error(`Error updating document: ${error}`);
-    //   }
-    // }
-
+    /** This async updateByKey method updates a sub-document within a nested document structure in a MongoDB database using Mongoose. Here’s a concise breakdown of its functionality:
+     * @param id : proccessId 
+     * @param keyPath : document path
+     * @param subId :  id to update 
+     * @param data : updated data
+     * @returns 
+    */
     async updateByKey(
-      mainDocId: string,
-      subDocArrayPath: string[],
-      subDocId: string,
-      subDocData: any,
-      metadataFields: { lastModifiedBy: string; lastModifiedOn: string } = { lastModifiedBy: 'last_modified_by', lastModifiedOn: 'last_modified_on' }
+      id: string,
+      keyPath: string[],
+      subId: string,
+      data: any,
     ): Promise<any> {
-      const mainDoc = await this.model.findById(mainDocId).exec();
-      if (!mainDoc) {
+      const value = await this.model.findById(id).exec();
+      if (!value) {
         throw new NotFoundException('Main document not found');
       }
     
-      let currentObj = mainDoc;
-      let parentObj = null;
-      let lastKey = '';
+      let currentObj: any = value;
+      let parentObj: any = null;
+      let lastKey: string = '';
     
-      // Traverse the path to find the sub-document array
-      for (const key of subDocArrayPath) {
+      for (const key of keyPath) {
         if (!currentObj[key]) {
           throw new NotFoundException(`Path not found: ${key}`);
         }
@@ -128,57 +133,67 @@ export abstract class GenericRepository<T> {
       }
     
       if (!Array.isArray(currentObj)) {
-        throw new Error(`The path does not point to an array: ${subDocArrayPath.join('.')}`);
+        throw new Error(`The path does not point to an array: ${keyPath.join('.')}`);
       }
     
-      const subDocIndex = currentObj.findIndex((doc: any) => doc._id.toString() === subDocId);
+      const subDocIndex = currentObj.findIndex((doc: any) => doc._id.toString() === subId);
       if (subDocIndex === -1) {
         throw new NotFoundException('Sub-document not found');
       }
     
-      // Update the sub-document
-      const subDoc = currentObj[subDocIndex];
-      Object.assign(subDoc, subDocData);
+      const updatePath = [...keyPath, subDocIndex.toString()].join('.');
+      const updateObject = {
+        [`${updatePath}`]: { ...currentObj[subDocIndex], ...data },
+      };
     
-     
+      
+      return await this.model.updateOne({ _id: id }, { $set: updateObject as any}).exec();
+    
 
-    mainDoc[metadataFields.lastModifiedBy] = subDocData.last_modified_by || mainDoc[metadataFields.lastModifiedBy];
-    mainDoc[metadataFields.lastModifiedOn] = new Date();
-    
-      parentObj[lastKey] = currentObj; // Ensure the modified array is set back in its parent object
-      mainDoc.markModified(subDocArrayPath.join('.')); // Mark the modified path
-    
-      // Save the main document
-      return mainDoc.save();
+      // const updatedValue = await this.model.findById(id).exec();
+      // return updatedValue;
     }
+    
 
+    /**
+     * The async delete method deletes a document from a MongoDB database using Mongoose. Here’s a concise description of its functionality:
+     * @param id processId
+     * @returns 
+     */
     async delete(id: string): Promise<T> {
       return this.model.findByIdAndDelete(id).exec();
     }
 
+    /**
+     * The async deleteByKey method removes a sub-document from a nested array within a main document in a MongoDB database using Mongoose. Here’s a concise breakdown of its functionality:
+     * @param id : processId 
+     * @param keyPath : path to insert data
+     * @param subId : id of array to delete the data
+     * @param metadataFields : modified field to update
+     * @returns 
+     */
     async deleteByKey(
-      mainDocId: string,
-      docArrayNames: string[],
-      subDocDataId: string,
-      metadataFields: { lastModifiedBy: string; lastModifiedOn: string } = { lastModifiedBy: 'last_modified_by', lastModifiedOn: 'last_modified_on' }
+      id: string,
+      keyPath: string[],
+      subId: string,
     ): Promise<any> {
-      const mainDoc = await this.model.findById(mainDocId).exec();
-      if (!mainDoc) {
+      const value = await this.model.findById(id).exec();
+      if (!value) {
         throw new NotFoundException('Main document not found');
       }
     
-      let currentObj = mainDoc;
+      let currentObj = value;
       let updatePath = '';
     
-      for (const arrayName of docArrayNames) {
+      for (const arrayName of keyPath) {
         if (!currentObj[arrayName]) {
           throw new NotFoundException(`Path not found: ${arrayName}`);
         }
         if (Array.isArray(currentObj[arrayName])) {
-          const subDocIndex = currentObj[arrayName].findIndex((item: any) => item._id && item._id.toString() === subDocDataId);
+          const subDocIndex = currentObj[arrayName].findIndex((item: any) => item._id && item._id.toString() === subId);
           if (subDocIndex !== -1) {
             currentObj[arrayName].splice(subDocIndex, 1); 
-            updatePath = docArrayNames.slice(0, docArrayNames.indexOf(arrayName) + 1).join('.');
+            updatePath = keyPath.slice(0, keyPath.indexOf(arrayName) + 1).join('.');
             break;
           } else {
             throw new NotFoundException('Sub-document not found');
@@ -191,48 +206,55 @@ export abstract class GenericRepository<T> {
       }
     
       if (!updatePath) {
-        throw new Error(`Array ${docArrayNames[docArrayNames.length - 1]} not found or is not an array`);
+        throw new Error(`Array ${keyPath[keyPath.length - 1]} not found or is not an array`);
       }
     
-      // Update metadata fields
-      mainDoc[metadataFields.lastModifiedBy] = 'editor'; 
-      mainDoc[metadataFields.lastModifiedOn] = new Date();
+      value.markModified(updatePath);
     
-      mainDoc.markModified(updatePath);
+      await value.save();
     
-      await mainDoc.save();
-    
-      return mainDoc;
+      return value;
     }
 
+    /**
+     * The async softDelete method marks a document as deleted in a MongoDB database using Mongoose without actually removing it. Here’s a concise description of its functionality:
+     * @param id : processId
+     * @returns 
+     */
     async softDelete(id: string): Promise<T> {
       return this.model.findByIdAndUpdate(id, { deleted: true }, { new: true }).exec();
     }
 
+    /**
+     * The async softDeleteByKey method toggles the is_deleted status of a sub-document within a nested array in a main document in a MongoDB database using Mongoose. Here’s a concise description of its functionality:
+     * @param id : processId
+     * @param keyPath : path to insert data
+     * @param subId : id of array to update the delete flag 
+     * @returns 
+     */
     async softDeleteByKey(
-      mainDocId: string,
-      docArrayNames: string[],
-      subDocId: string,
-      metadataFields: { lastModifiedBy: string; lastModifiedOn: string } = { lastModifiedBy: 'last_modified_by', lastModifiedOn: 'last_modified_on' }
-    ): Promise<any> {
-      const mainDoc = await this.model.findById(mainDocId).exec();
-      if (!mainDoc) {
+      id: string,
+      keyPath: string[],
+      subId: string,
+      ): Promise<any> {
+      const value = await this.model.findById(id).exec();
+      if (!value) {
         throw new NotFoundException('Main document not found');
       }
     
-      let currentObj = mainDoc;
+      let currentObj = value;
     
-      docArrayNames.forEach((arrayName, index) => {
+      keyPath.forEach((arrayName, index) => {
         if (!currentObj[arrayName]) {
           throw new NotFoundException(`Path not found: ${arrayName}`);
         }
         if (Array.isArray(currentObj[arrayName])) {
-          const subDocIndex = currentObj[arrayName].findIndex((item: any) => item._id && item._id.toString() === subDocId);
+          const subDocIndex = currentObj[arrayName].findIndex((item: any) => item._id && item._id.toString() === subId);
           if (subDocIndex !== -1) {
             console.log("flg:",currentObj[arrayName][subDocIndex].is_deleted);
             currentObj[arrayName][subDocIndex].is_deleted = !currentObj[arrayName][subDocIndex].is_deleted;
             console.log("flg1:",currentObj[arrayName][subDocIndex].is_deleted);
-            mainDoc.markModified(docArrayNames.slice(0, index + 1).join('.'));
+            value.markModified(keyPath.slice(0, index + 1).join('.'));
             return;
           } else {
             throw new NotFoundException('Sub-document not found');
@@ -244,18 +266,18 @@ export abstract class GenericRepository<T> {
         }
       });
     
-      mainDoc[metadataFields.lastModifiedBy] = 'Editor'; 
-      mainDoc[metadataFields.lastModifiedOn] = new Date();
     
-      await mainDoc.save();
+      await value.save();
     
-      return mainDoc;
+      return value;
     }
 
-    async restore(id: string): Promise<T> {
-      return this.model.findByIdAndUpdate(id, { deleted: false }, { new: true }).exec();
-    }
-
+    /**
+     * The async findAll method retrieves documents from a MongoDB database using Mongoose, based on optional criteria and query options. Here’s a concise description of its functionality:
+     * @param criteria : Optional filter criteria to find documents.
+     * @param options : Optional query options to sort, limit, skip, select, and populate fields.
+     * @returns 
+     */
     async findAll(criteria: FilterQuery<T> = {}, options: FindAllOptions<T> = {}): Promise<T[]> {
         let query: any;
 
@@ -283,31 +305,48 @@ export abstract class GenericRepository<T> {
         return await query.exec(); // Ensure await is used here
     }
 
+    /**
+     * The async findById method retrieves a single document from a MongoDB database using Mongoose by its id. Here’s a concise description of its functionality:
+     * @param id 
+     * @returns 
+     */
     async findById(id: string): Promise<T> {
         return this.model.findById(id).exec();
+    }
+
+    /**
+     * The async findOne method retrieves a single document from a MongoDB database using Mongoose based on optional criteria and query options. Here’s a concise description of its functionality:
+     * @param criteria : Optional filter criteria to find documents.
+     * @param options : Optional query options to select, and populate fields.
+     * @returns 
+     */
+    async findOne(criteria: FilterQuery<T> = {}, options: FindAllOptions<T> = {}): Promise<T | null> {
+      let query: any;
+  
+      if (criteria) {
+          query = this.model.findOne(criteria);
+      } else {
+          query = this.model.findOne();
+      }
+  
+      if (options.select) {
+          query = query.select(options.select);
+      }
+      if (options.populate) {
+          query = query.populate(options.populate);
+      }
+      return await query.exec(); // Ensure await is used here
+  }
+
+    async restore(id: string): Promise<T> {
+      return this.model.findByIdAndUpdate(id, { deleted: false }, { new: true }).exec();
     }
 
     // async findOne(criteria: FilterQuery<T>): Promise<T | null> {
     //     return this.model.findOne(criteria).exec();
     // }
 
-    async findOne(criteria: FilterQuery<T> = {}, options: FindAllOptions<T> = {}): Promise<T | null> {
-        let query: any;
     
-        if (criteria) {
-            query = this.model.findOne(criteria);
-        } else {
-            query = this.model.findOne();
-        }
-    
-        if (options.select) {
-            query = query.select(options.select);
-        }
-        if (options.populate) {
-            query = query.populate(options.populate);
-        }
-        return await query.exec(); // Ensure await is used here
-    }
 
     async findOneOrFail(criteria: FilterQuery<T> = {}, options: FindAllOptions<T> = {}): Promise<T> {
         let query: any;
@@ -445,24 +484,24 @@ export abstract class GenericRepository<T> {
       }
 
       // async softDeleteByKey(
-      //   mainDocId: string,
+      //   id: string,
       //   subDocArrayName: string,
-      //   subDocId: string,
+      //   subId: string,
       //   metadataFields: { lastModifiedBy: string; lastModifiedOn: string } = { lastModifiedBy: 'last_modified_by', lastModifiedOn: 'last_modified_on' }
       // ): Promise<any> {
-      //   const mainDoc = await this.model.findById(mainDocId).exec();
-      //   if (!mainDoc) {
+      //   const value = await this.model.findById(id).exec();
+      //   if (!value) {
       //     throw new NotFoundException('Main document not found');
       //   }
         
-      //   const data = mainDoc[subDocArrayName];
+      //   const data = value[subDocArrayName];
       
       //   let subDoc = null;
       
       //   const findSubDoc = (data: any) => {
       //     if (Array.isArray(data)) {
       //       for (const item of data) {
-      //         if (item._id && item._id.toString() === subDocId) {
+      //         if (item._id && item._id.toString() === subId) {
       //           return item;
       //         }
       //         const result = findSubDoc(item);
@@ -485,11 +524,11 @@ export abstract class GenericRepository<T> {
       
       //   subDoc.is_deleted = !subDoc.is_deleted;
       
-      //   mainDoc.markModified(subDocArrayName);
+      //   value.markModified(subDocArrayName);
       
-      //   mainDoc[metadataFields.lastModifiedOn] = new Date();
+      //   value[metadataFields.lastModifiedOn] = new Date();
       
-      //   await mainDoc.save();
+      //   await value.save();
       
       //   return subDoc;
       // }
@@ -502,159 +541,159 @@ export abstract class GenericRepository<T> {
    
 
     // async addSubDocument(
-    //     mainDocId: string,
+    //     id: string,
     //     subDocArrayName: string,
-    //     subDocData: any,
+    //     data: any,
     //     metadataFields: { lastModifiedBy: string; lastModifiedOn: string } = { lastModifiedBy: 'last_modified_by', lastModifiedOn: 'last_modified_on' }
     // ): Promise<any> {
-    //     const mainDoc = await this.model.findById(mainDocId).exec();
-    //     if (!mainDoc) {
+    //     const value = await this.model.findById(id).exec();
+    //     if (!value) {
     //         throw new NotFoundException('Main document not found');
     //     }
-    //     mainDoc[subDocArrayName].push(subDocData);
-    //     mainDoc.markModified(subDocArrayName);
-    //     mainDoc[metadataFields.lastModifiedBy] = "Editor";
-    //     mainDoc[metadataFields.lastModifiedOn] = new Date();
-    //     return mainDoc.save();
+    //     value[subDocArrayName].push(data);
+    //     value.markModified(subDocArrayName);
+    //     value[metadataFields.lastModifiedBy] = "Editor";
+    //     value[metadataFields.lastModifiedOn] = new Date();
+    //     return value.save();
     // };
     
    
     
     
   //   async updateSubDocument(
-  //     mainDocId: string,
+  //     id: string,
   //     subDocArrayName: string,
-  //     subDocId: string,
-  //     subDocData: any,
+  //     subId: string,
+  //     data: any,
   //     metadataFields: { lastModifiedBy: string; lastModifiedOn: string } = { lastModifiedBy: 'last_modified_by', lastModifiedOn: 'last_modified_on' }
   // ): Promise<any> {
-  //     const mainDoc = await this.model.findById(mainDocId).exec();
-  //     if (!mainDoc) {
+  //     const value = await this.model.findById(id).exec();
+  //     if (!value) {
   //         throw new NotFoundException('Main document not found');
   //     }
 
-  //     const subDoc = mainDoc[subDocArrayName].find((doc: any) => doc._id.toString() === subDocId);
+  //     const subDoc = value[subDocArrayName].find((doc: any) => doc._id.toString() === subId);
   //     if (!subDoc) {
   //         throw new NotFoundException('Sub-document not found');
   //     }
 
-  //     Object.keys(subDocData).forEach((key) => {
-  //         subDoc[key] = subDocData[key];
+  //     Object.keys(data).forEach((key) => {
+  //         subDoc[key] = data[key];
   //     });
 
-  //     mainDoc.markModified(subDocArrayName);
+  //     value.markModified(subDocArrayName);
 
-  //     mainDoc[metadataFields.lastModifiedBy] = subDocData.last_modified_by || mainDoc[metadataFields.lastModifiedBy];
-  //     mainDoc[metadataFields.lastModifiedOn] = new Date();
+  //     value[metadataFields.lastModifiedBy] = data.last_modified_by || value[metadataFields.lastModifiedBy];
+  //     value[metadataFields.lastModifiedOn] = new Date();
 
-  //     await mainDoc.save();
+  //     await value.save();
 
-  //     return mainDoc[subDocArrayName].find((doc: any) => doc._id.toString() === subDocId);
+  //     return value[subDocArrayName].find((doc: any) => doc._id.toString() === subId);
   // }
 
   // async addSubSubDocument(
-  //   mainDocId: string,
+  //   id: string,
   //   subDocArrayName: string,
   //   subDocArrayName1: string,
-  //   subDocData: any,
+  //   data: any,
   //   metadataFields: { lastModifiedBy: string; lastModifiedOn: string } = { lastModifiedBy: 'last_modified_by', lastModifiedOn: 'last_modified_on' }
   //   ): Promise<any> {
-  //   const mainDoc = await this.model.findById(mainDocId).exec();
-  //   if (!mainDoc) {
+  //   const value = await this.model.findById(id).exec();
+  //   if (!value) {
   //       throw new NotFoundException('Main document not found');
   //   }
-  //   mainDoc[subDocArrayName][subDocArrayName1].push(subDocData);
-  //   mainDoc.markModified(subDocArrayName);
-  //   mainDoc[metadataFields.lastModifiedBy] = 'Editor';
-  //   mainDoc[metadataFields.lastModifiedOn] = new Date();
+  //   value[subDocArrayName][subDocArrayName1].push(data);
+  //   value.markModified(subDocArrayName);
+  //   value[metadataFields.lastModifiedBy] = 'Editor';
+  //   value[metadataFields.lastModifiedOn] = new Date();
     
-  //   return mainDoc.save();
+  //   return value.save();
   // };
 
 
 //   async updateSubSubDocument(
-//     mainDocId: string,
+//     id: string,
 //     subDocArrayName: string,
 //     subDocArrayName1: string,
-//     subDocId: string,
-//     subDocData: any,
+//     subId: string,
+//     data: any,
 //     metadataFields: { lastModifiedBy: string; lastModifiedOn: string } = { lastModifiedBy: 'last_modified_by', lastModifiedOn: 'last_modified_on' }
 //  ): Promise<any> {
-//     const mainDoc = await this.model.findById(mainDocId).exec();
-//     if (!mainDoc) {
+//     const value = await this.model.findById(id).exec();
+//     if (!value) {
 //         throw new NotFoundException('Main document not found');
 //     }
-//     const subDocArrayObj = mainDoc[subDocArrayName];
-//     const subDoc = subDocArrayObj[subDocArrayName1].find((doc: any) => doc._id.toString() === subDocId);
+//     const subDocArrayObj = value[subDocArrayName];
+//     const subDoc = subDocArrayObj[subDocArrayName1].find((doc: any) => doc._id.toString() === subId);
 //     if (!subDoc) {
 //         throw new NotFoundException('Sub-document not found');
 //     }
-//     Object.keys(subDocData).forEach((key) => {
-//         subDoc[key] = subDocData[key];
+//     Object.keys(data).forEach((key) => {
+//         subDoc[key] = data[key];
 //     });
 
-//     mainDoc.markModified(subDocArrayName);
+//     value.markModified(subDocArrayName);
 
-//     mainDoc[metadataFields.lastModifiedBy] = subDocData.last_modified_by || mainDoc[metadataFields.lastModifiedBy];
-//     mainDoc[metadataFields.lastModifiedOn] = new Date();
+//     value[metadataFields.lastModifiedBy] = data.last_modified_by || value[metadataFields.lastModifiedBy];
+//     value[metadataFields.lastModifiedOn] = new Date();
 
-//     await mainDoc.save();
-//     const data = mainDoc[subDocArrayName];
-//     return data[subDocArrayName1].find((doc: any) => doc._id.toString() === subDocId);
+//     await value.save();
+//     const data = value[subDocArrayName];
+//     return data[subDocArrayName1].find((doc: any) => doc._id.toString() === subId);
 // }
     
 // async updateSubSubDocumentDeleteFlag(
-//     mainDocId: string,
+//     id: string,
 //     subDocArrayName: string,
 //     subDocArrayName1: string,
-//     subDocId: string,
+//     subId: string,
 //     metadataFields: { lastModifiedBy: string; lastModifiedOn: string } = { lastModifiedBy: 'last_modified_by', lastModifiedOn: 'last_modified_on' }
 //   ): Promise<any> {
-//     const mainDoc = await this.model.findById(mainDocId).exec();
-//     if (!mainDoc) {
+//     const value = await this.model.findById(id).exec();
+//     if (!value) {
 //         throw new NotFoundException('Main document not found');
 //     }
   
-//     const subDocArrayObj = mainDoc[subDocArrayName];
-//     const subDoc = subDocArrayObj[subDocArrayName1].find((doc: any) => doc._id.toString() === subDocId);
+//     const subDocArrayObj = value[subDocArrayName];
+//     const subDoc = subDocArrayObj[subDocArrayName1].find((doc: any) => doc._id.toString() === subId);
 //     if (!subDoc) {
 //         throw new NotFoundException('Sub-document not found');
 //     }
   
 //     subDoc.is_deleted = !subDoc.is_deleted;
   
-//     mainDoc.markModified(subDocArrayName);
+//     value.markModified(subDocArrayName);
 
-//     mainDoc[metadataFields.lastModifiedOn] = new Date();
+//     value[metadataFields.lastModifiedOn] = new Date();
 
-//     await mainDoc.save();
+//     await value.save();
   
-//     const data = mainDoc[subDocArrayName];
-//     return data[subDocArrayName1].find((doc: any) => doc._id.toString() === subDocId);
+//     const data = value[subDocArrayName];
+//     return data[subDocArrayName1].find((doc: any) => doc._id.toString() === subId);
 // }
 
 
 
 
 // async updateSubDocumentDeleteFlag(
-//     mainDocId: string,
+//     id: string,
 //     subDocArrayName: string,
-//     subDocId: string,
+//     subId: string,
 //     metadataFields: { lastModifiedBy: string; lastModifiedOn: string } = { lastModifiedBy: 'last_modified_by', lastModifiedOn: 'last_modified_on' }
 //   ): Promise<any> {
-//     const mainDoc = await this.model.findById(mainDocId).exec();
-//     if (!mainDoc) {
+//     const value = await this.model.findById(id).exec();
+//     if (!value) {
 //       throw new NotFoundException('Main document not found');
 //     }
   
-//     const data = mainDoc[subDocArrayName];
+//     const data = value[subDocArrayName];
     
 //     console.log("data:", data);
   
 //     let subDoc = null;
   
 //     if (Array.isArray(data)) {
-//       subDoc = data.find((doc: any) => doc._id.toString() === subDocId);
+//       subDoc = data.find((doc: any) => doc._id.toString() === subId);
 //     }
   
 //     if (!subDoc) {
@@ -664,7 +703,7 @@ export abstract class GenericRepository<T> {
 //         const arrayOrObject = data[key];
 //         if (Array.isArray(arrayOrObject)) {
 //           for (const doc of arrayOrObject) {
-//             if (doc._id.toString() === subDocId) {
+//             if (doc._id.toString() === subId) {
 //               subDoc = doc;
 //               break;
 //             }
@@ -675,7 +714,7 @@ export abstract class GenericRepository<T> {
 //             const nestedArray = arrayOrObject[nestedKey];
 //             if (Array.isArray(nestedArray)) {
 //               for (const doc of nestedArray) {
-//                 if (doc._id.toString() === subDocId) {
+//                 if (doc._id.toString() === subId) {
 //                   subDoc = doc;
 //                   break;
 //                 }
@@ -695,11 +734,11 @@ export abstract class GenericRepository<T> {
   
 //     subDoc.is_deleted = !subDoc.is_deleted;
   
-//     mainDoc.markModified(subDocArrayName);
+//     value.markModified(subDocArrayName);
   
-//     mainDoc[metadataFields.lastModifiedOn] = new Date();
+//     value[metadataFields.lastModifiedOn] = new Date();
   
-//     await mainDoc.save();
+//     await value.save();
   
 //     return subDoc;
 //   }
@@ -707,31 +746,52 @@ export abstract class GenericRepository<T> {
   
   
 //   async updateSubDocumentDeleteFlag(
-//       mainDocId: string,
+//       id: string,
 //       subDocArrayName: string,
-//       subDocId: string,
+//       subId: string,
 //       metadataFields: { lastModifiedBy: string; lastModifiedOn: string } = { lastModifiedBy: 'last_modified_by', lastModifiedOn: 'last_modified_on' }
 //     ): Promise<any> {
-//       const mainDoc = await this.model.findById(mainDocId).exec();
-//       if (!mainDoc) {
+//       const value = await this.model.findById(id).exec();
+//       if (!value) {
 //           throw new NotFoundException('Main document not found');
 //       }
       
-//       const data = mainDoc[subDocArrayName];
+//       const data = value[subDocArrayName];
 //       console.log("data:", data);
-//       const subDoc = mainDoc[subDocArrayName].find((doc: any) => doc._id.toString() === subDocId);
+//       const subDoc = value[subDocArrayName].find((doc: any) => doc._id.toString() === subId);
 //       if (!subDoc) {
 //           throw new NotFoundException('Sub-document not found');
 //       }
     
 //       subDoc.is_deleted = !subDoc.is_deleted;
     
-//       mainDoc.markModified(subDocArrayName);
+//       value.markModified(subDocArrayName);
 
-//       mainDoc[metadataFields.lastModifiedOn] = new Date();
+//       value[metadataFields.lastModifiedOn] = new Date();
 
-//       await mainDoc.save();
+//       await value.save();
     
-//       return mainDoc[subDocArrayName].find((doc: any) => doc._id.toString() === subDocId);
+//       return value[subDocArrayName].find((doc: any) => doc._id.toString() === subId);
 //   }
+
+ // async update(criteria: FilterQuery<T>, update: Partial<T>): Promise<updateResponseDto> {
+    //   try {
+    //       const result = await this.model.updateOne(criteria, update).exec();
+  
+    //       const responseDto: updateResponseDto = {
+    //           acknowledged: result.acknowledged,
+    //           modifiedCount: result.modifiedCount,
+    //           upsertedId: result.upsertedId ? result.upsertedId.toString() : null,
+    //           upsertedCount: result.upsertedCount || 0,
+    //           matchedCount: result.matchedCount
+    //       };
+  
+    //       return responseDto;
+    //   } catch (error) {
+    //       throw new Error(`Error updating document: ${error}`);
+    //   }
+    // }
+
 }
+
+

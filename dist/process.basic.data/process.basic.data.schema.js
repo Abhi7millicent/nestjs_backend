@@ -644,12 +644,12 @@ __decorate([
     __metadata("design:type", mongoose_2.Schema.Types.ObjectId)
 ], ProcessBasicData.prototype, "_id", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ required: true }),
-    __metadata("design:type", String)
+    (0, mongoose_1.Prop)({ type: [String], required: true }),
+    __metadata("design:type", Array)
 ], ProcessBasicData.prototype, "function_id", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ required: true }),
-    __metadata("design:type", String)
+    (0, mongoose_1.Prop)({ type: [String], required: true }),
+    __metadata("design:type", Array)
 ], ProcessBasicData.prototype, "sub_function_id", void 0);
 __decorate([
     (0, mongoose_1.Prop)({ required: true }),
@@ -748,7 +748,7 @@ __decorate([
     __metadata("design:type", Array)
 ], ProcessBasicData.prototype, "controls", void 0);
 exports.ProcessBasicData = ProcessBasicData = __decorate([
-    (0, mongoose_1.Schema)({ collection: 'process_basic_data' })
+    (0, mongoose_1.Schema)({ collection: 'process_basic_data1' })
 ], ProcessBasicData);
 exports.ProcessBasicDataSchema = mongoose_1.SchemaFactory.createForClass(ProcessBasicData);
 //# sourceMappingURL=process.basic.data.schema.js.map

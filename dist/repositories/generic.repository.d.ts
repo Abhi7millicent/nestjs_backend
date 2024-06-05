@@ -12,31 +12,19 @@ export declare abstract class GenericRepository<T> {
     protected readonly model: Model<T>;
     constructor(model: Model<T>);
     create(entity: Partial<T>): Promise<T>;
-    createByKey(mainDocId: string, docArrayNames: string[], subDocData: any, metadataFields?: {
-        lastModifiedBy: string;
-        lastModifiedOn: string;
-    }): Promise<any>;
+    createByKey(id: string, keyPath: string[], data: any): Promise<any>;
     update(criteria: FilterQuery<T>, update: Partial<T>): Promise<updateResponseDto & {
         updatedData: T;
     }>;
-    updateByKey(mainDocId: string, subDocArrayPath: string[], subDocId: string, subDocData: any, metadataFields?: {
-        lastModifiedBy: string;
-        lastModifiedOn: string;
-    }): Promise<any>;
+    updateByKey(id: string, keyPath: string[], subId: string, data: any): Promise<any>;
     delete(id: string): Promise<T>;
-    deleteByKey(mainDocId: string, docArrayNames: string[], subDocDataId: string, metadataFields?: {
-        lastModifiedBy: string;
-        lastModifiedOn: string;
-    }): Promise<any>;
+    deleteByKey(id: string, keyPath: string[], subId: string): Promise<any>;
     softDelete(id: string): Promise<T>;
-    softDeleteByKey(mainDocId: string, docArrayNames: string[], subDocId: string, metadataFields?: {
-        lastModifiedBy: string;
-        lastModifiedOn: string;
-    }): Promise<any>;
-    restore(id: string): Promise<T>;
+    softDeleteByKey(id: string, keyPath: string[], subId: string): Promise<any>;
     findAll(criteria?: FilterQuery<T>, options?: FindAllOptions<T>): Promise<T[]>;
     findById(id: string): Promise<T>;
     findOne(criteria?: FilterQuery<T>, options?: FindAllOptions<T>): Promise<T | null>;
+    restore(id: string): Promise<T>;
     findOneOrFail(criteria?: FilterQuery<T>, options?: FindAllOptions<T>): Promise<T>;
     update1(id: string, entity: Partial<T>): Promise<T>;
     findAllAscending(sortField: keyof T, criteria?: FilterQuery<T>): Promise<T[]>;

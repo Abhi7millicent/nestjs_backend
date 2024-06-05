@@ -513,16 +513,16 @@ class ProcessControl {
   is_deleted!: boolean;
 }
 
-@Schema({ collection: 'process_basic_data' })
+@Schema({ collection: 'process_basic_data1' })
 export class ProcessBasicData extends Document {
   @Prop({ type: MongooseSchema.Types.ObjectId, auto: true })
   _id: MongooseSchema.Types.ObjectId;
 
-  @Prop({ required: true })
-  public function_id!: string;
+  @Prop({ type: [String], required: true })
+  public function_id!: string[];
 
-  @Prop({ required: true })
-  public sub_function_id!: string;
+  @Prop({ type: [String], required: true })
+  public sub_function_id!: string[];
 
   @Prop({ required: true })
   public title!: string;

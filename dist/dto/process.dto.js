@@ -1,9 +1,9 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MDO = exports.QueriesAndResponsesDto = exports.AnalyticalDashboardsDto = exports.ReportsDto = exports.KpisDto = exports.WorkflowsDto = exports.CreateActivityDto = void 0;
-class CreateActivityDto {
+exports.MDO = exports.QueriesAndResponsesDto = exports.AnalyticalDashboardsDto = exports.ReportsDto = exports.KpisDto = exports.WorkflowsDto = exports.ActivityDto = void 0;
+class ActivityDto {
 }
-exports.CreateActivityDto = CreateActivityDto;
+exports.ActivityDto = ActivityDto;
 class WorkflowsDto {
 }
 exports.WorkflowsDto = WorkflowsDto;

@@ -1,4 +1,4 @@
-export declare class CreateActivityDto {
+export declare class ActivityDto {
     _id: string;
     sr_no: string;
     description: string;
@@ -7,6 +7,7 @@ export declare class CreateActivityDto {
     performed_where: string;
     value_calculation_logic: string;
     accounts_postings: string;
+    last_modified_by: string;
     is_deleted: boolean;
 }
 export declare class WorkflowsDto {
@@ -19,6 +20,7 @@ export declare class WorkflowsDto {
     activity_id: string;
     automation_id: string;
     integration_scenario_id: string;
+    last_modified_by: string;
     is_deleted: boolean;
 }
 export declare class KpisDto {

@@ -12,22 +12,46 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ProcessActivityService = void 0;
 const common_1 = require("@nestjs/common");
 const process_basic_data_repository_1 = require("./process.basic.data.repository");
+const process_constants_1 = require("../constants/process.constants");
+const process_utils_1 = require("../utils/process.utils");
 let ProcessActivityService = class ProcessActivityService {
     constructor(processBasicDataRepository) {
         this.processBasicDataRepository = processBasicDataRepository;
     }
-    async updateActivity(processId, activityId, activityData) {
-        return this.processBasicDataRepository.updateByKey(processId, ['activities'], activityId, activityData);
+    async updateActivity(processId, activityId, activityDto) {
+        const auditData = {
+            last_modified_by: activityDto.last_modified_by,
+            last_modified_on: new Date()
+        };
+        delete activityDto.last_modified_by;
+        const data = await this.processBasicDataRepository.updateByKey(processId, (0, process_utils_1.findPath)(process_constants_1.PROCESS, "activities"), activityId, activityDto);
+        if (data.acknowledged) {
+            const updateResponseDto = await this.processBasicDataRepository.update({ _id: processId }, auditData);
+            return updateResponseDto;
+        }
+        else {
+            return data;
+        }
     }
     async updateActivityIsDeleted(processId, activityId) {
-        return this.processBasicDataRepository.deleteByKey(processId, ['activities'], activityId);
+        return this.processBasicDataRepository.deleteByKey(processId, (0, process_utils_1.findPath)(process_constants_1.PROCESS, "activities"), activityId);
     }
     async updateActivityIsSoftDeleted(processId, activityId) {
-        return this.processBasicDataRepository.softDeleteByKey(processId, ['activities'], activityId);
+        return this.processBasicDataRepository.softDeleteByKey(processId, (0, process_utils_1.findPath)(process_constants_1.PROCESS, "activities"), activityId);
     }
-    async addActivity(processId, createActivityDto) {
-        createActivityDto._id = 'activity_' + Math.random().toString(36).substring(2, 11);
-        return this.processBasicDataRepository.createByKey(processId, ['activities'], createActivityDto);
+    async addActivity(processId, activityDto) {
+        activityDto._id = (0, process_utils_1.generateId)('activity_');
+        const auditData = {
+            last_modified_by: activityDto.last_modified_by,
+            last_modified_on: new Date()
+        };
+        delete activityDto.last_modified_by;
+        const data = await this.processBasicDataRepository.createByKey(processId, (0, process_utils_1.findPath)(process_constants_1.PROCESS, "activities"), activityDto);
+        if (data._id === activityDto._id) {
+            const updateResponseDto = await this.processBasicDataRepository.update({ _id: processId }, auditData);
+            console.log("updateMetaData:", updateResponseDto);
+        }
+        return data;
     }
     ;
 };

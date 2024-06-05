@@ -1,6 +1,8 @@
 import { Injectable } from "@nestjs/common";
 import { ProcessBasicDataRepository } from "./process.basic.data.repository";
-import { CreateActivityDto } from "src/dto/process.dto";
+import { ActivityDto } from "src/dto/process.dto";
+import { PROCESS } from "src/constants/process.constants";
+import { findPath, generateId } from "src/utils/process.utils";
 
 @Injectable()
 export class ProcessActivityService {
@@ -11,14 +13,28 @@ export class ProcessActivityService {
     async updateActivity(
         processId: string,
         activityId: string,
-        activityData: any
+        activityDto: ActivityDto
     ): Promise<any> {
-        return this.processBasicDataRepository.updateByKey(
-            processId,
-            ['activities'],
-            activityId,
-            activityData
+      const auditData = {
+        last_modified_by: activityDto.last_modified_by,
+        last_modified_on: new Date()
+      };
+      delete activityDto.last_modified_by;
+        const data = await this.processBasicDataRepository.updateByKey(
+          processId,
+          findPath(PROCESS, "activities"),
+          activityId,
+          activityDto
         );
+      if(data.acknowledged){
+        const updateResponseDto = await this.processBasicDataRepository.update(
+            { _id: processId },
+            auditData
+        );
+        return updateResponseDto;
+        } else {
+        return data;
+      } 
     }
 
       async updateActivityIsDeleted(
@@ -27,7 +43,7 @@ export class ProcessActivityService {
       ): Promise<any> {
         return this.processBasicDataRepository.deleteByKey(
             processId,
-            ['activities'],
+            findPath(PROCESS, "activities"),
             activityId,
         );
       }
@@ -38,30 +54,46 @@ export class ProcessActivityService {
       ): Promise<any> {
         return this.processBasicDataRepository.softDeleteByKey(
             processId,
-            ['activities'],
+            findPath(PROCESS, "activities"),
             activityId,
         );
       }
 
       async addActivity(
         processId: string,
-         createActivityDto: CreateActivityDto
+         activityDto: ActivityDto
         ): Promise<any> {
-        createActivityDto._id = 'activity_' + Math.random().toString(36).substring(2, 11);
-        return this.processBasicDataRepository.createByKey(
+        activityDto._id = generateId('activity_');
+
+        const auditData = {
+          last_modified_by: activityDto.last_modified_by,
+          last_modified_on: new Date()
+        };
+
+        delete activityDto.last_modified_by;
+        const data = await this.processBasicDataRepository.createByKey(
             processId,
-            ['activities'],
-            createActivityDto,
+            findPath(PROCESS, "activities"),
+            activityDto,
         )
+        if (data._id === activityDto._id) {
+          const updateResponseDto = await this.processBasicDataRepository.update(
+               { _id: processId },
+               auditData
+           );
+           console.log("updateMetaData:", updateResponseDto);
+        }
+       
+          return data;
         };
     
-    // async addActivity(processId: string, createActivityDto: CreateActivityDto): Promise<ProcessBasicData> {
-    //     createActivityDto._id = 'activity_' + Math.random().toString(36).substring(2, 11);
+    // async addActivity(processId: string, activityDto: activityDto): Promise<ProcessBasicData> {
+    //     activityDto._id = 'activity_' + Math.random().toString(36).substring(2, 11);
     //     const process = await this.processBasicDataRepository.findById(processId);
     //     if (!process) {
     //       throw new Error('Process not found');
     //     }
-    //     process.activities.push(createActivityDto);
+    //     process.activities.push(activityDto);
     //     return process.save();
     // }
 }

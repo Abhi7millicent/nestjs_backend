@@ -1,7 +1,8 @@
 import { Injectable } from "@nestjs/common";
 import { ProcessBasicDataRepository } from "./process.basic.data.repository";
 import { WorkflowsDto } from "src/dto/process.dto";
-import { ProcessBasicData } from "./process.basic.data.schema";
+import { PROCESS, controlAndMonitoring, workflow } from "src/constants/process.constants";
+import { findPath, generateId } from "src/utils/process.utils";
 
 @Injectable()
 
@@ -13,27 +14,64 @@ export class ProcessWorkflowService {
     async updateWorkflow(
         processId: string,
         workflowId: string,
-        workflowData: any
+        workflowsDto: WorkflowsDto
     ): Promise<any> {
-        return this.processBasicDataRepository.updateByKey(
-            processId,
-    ['control_and_monitoring', 'workflows'],
-    workflowId,
-    workflowData
+        const auditData = {
+            last_modified_by: workflowsDto.last_modified_by,
+            last_modified_on: new Date()
+        };
+        delete workflowsDto.last_modified_by;
+        const data = await this.processBasicDataRepository.updateByKey(
+        processId,
+        findPath(PROCESS, controlAndMonitoring["workflows"]),
+        workflowId,
+        workflowsDto,
         );
+        if(data.acknowledged){
+            const updateResponseDto = await this.processBasicDataRepository.update(
+                { _id: processId },
+                auditData
+            );
+            return updateResponseDto;
+        } else {
+            return data;
+        }
     }
 
     async addWorkflows(
         processId: string,
         workflowsDto: WorkflowsDto
-        ): Promise<any> {
-        workflowsDto._id = 'wf_' + Math.random().toString(36).substring(2, 11);
-        return this.processBasicDataRepository.createByKey(
-            processId,
-            ['control_and_monitoring', 'workflows'],
-            workflowsDto,
-        )
-    };
+    ): Promise<any> {
+        try {
+            workflowsDto._id = generateId(workflow);
+            
+            const auditData = {
+                last_modified_by: workflowsDto.last_modified_by,
+                last_modified_on: new Date()
+            };
+            
+            delete workflowsDto.last_modified_by;
+            const data = await this.processBasicDataRepository.createByKey(
+                processId,
+                findPath(PROCESS, controlAndMonitoring["workflows"]),
+                workflowsDto,
+            );
+            console.log("data:", data);
+            if (data._id === workflowsDto._id) {
+               const updateResponseDto = await this.processBasicDataRepository.update(
+                    { _id: processId },
+                    auditData
+                );
+                console.log("updateMetaData:", updateResponseDto);
+            }
+            
+            return data;
+        } catch (error) {
+            console.error('Error in addWorkflows:', error);
+            throw new Error(`Failed to add workflows: ${error.message}`);
+        }
+    }
+    
 
     async updateWorkflowsIsDeleted(
         processId: string,
@@ -41,7 +79,7 @@ export class ProcessWorkflowService {
       ): Promise<any> {
         return this.processBasicDataRepository.deleteByKey(
             processId,
-            ['control_and_monitoring', 'workflows'],
+            findPath(PROCESS, controlAndMonitoring["workflows"]),
             workflowId,
         );
       }
@@ -52,7 +90,7 @@ export class ProcessWorkflowService {
       ): Promise<any> {
         return this.processBasicDataRepository.softDeleteByKey(
             processId,
-            ['control_and_monitoring', 'workflows'],
+            findPath(PROCESS, controlAndMonitoring["workflows"]),
             workflowId,
         );
       }

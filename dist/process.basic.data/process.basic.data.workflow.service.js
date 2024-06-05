@@ -12,23 +12,53 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ProcessWorkflowService = void 0;
 const common_1 = require("@nestjs/common");
 const process_basic_data_repository_1 = require("./process.basic.data.repository");
+const process_constants_1 = require("../constants/process.constants");
+const process_utils_1 = require("../utils/process.utils");
 let ProcessWorkflowService = class ProcessWorkflowService {
     constructor(processBasicDataRepository) {
         this.processBasicDataRepository = processBasicDataRepository;
     }
-    async updateWorkflow(processId, workflowId, workflowData) {
-        return this.processBasicDataRepository.updateByKey(processId, ['control_and_monitoring', 'workflows'], workflowId, workflowData);
+    async updateWorkflow(processId, workflowId, workflowsDto) {
+        const auditData = {
+            last_modified_by: workflowsDto.last_modified_by,
+            last_modified_on: new Date()
+        };
+        delete workflowsDto.last_modified_by;
+        const data = await this.processBasicDataRepository.updateByKey(processId, (0, process_utils_1.findPath)(process_constants_1.PROCESS, process_constants_1.controlAndMonitoring["workflows"]), workflowId, workflowsDto);
+        if (data.acknowledged) {
+            const updateResponseDto = await this.processBasicDataRepository.update({ _id: processId }, auditData);
+            return updateResponseDto;
+        }
+        else {
+            return data;
+        }
     }
     async addWorkflows(processId, workflowsDto) {
-        workflowsDto._id = 'wf_' + Math.random().toString(36).substring(2, 11);
-        return this.processBasicDataRepository.createByKey(processId, ['control_and_monitoring', 'workflows'], workflowsDto);
+        try {
+            workflowsDto._id = (0, process_utils_1.generateId)(process_constants_1.workflow);
+            const auditData = {
+                last_modified_by: workflowsDto.last_modified_by,
+                last_modified_on: new Date()
+            };
+            delete workflowsDto.last_modified_by;
+            const data = await this.processBasicDataRepository.createByKey(processId, (0, process_utils_1.findPath)(process_constants_1.PROCESS, process_constants_1.controlAndMonitoring["workflows"]), workflowsDto);
+            console.log("data:", data);
+            if (data._id === workflowsDto._id) {
+                const updateResponseDto = await this.processBasicDataRepository.update({ _id: processId }, auditData);
+                console.log("updateMetaData:", updateResponseDto);
+            }
+            return data;
+        }
+        catch (error) {
+            console.error('Error in addWorkflows:', error);
+            throw new Error(`Failed to add workflows: ${error.message}`);
+        }
     }
-    ;
     async updateWorkflowsIsDeleted(processId, workflowId) {
-        return this.processBasicDataRepository.deleteByKey(processId, ['control_and_monitoring', 'workflows'], workflowId);
+        return this.processBasicDataRepository.deleteByKey(processId, (0, process_utils_1.findPath)(process_constants_1.PROCESS, process_constants_1.controlAndMonitoring["workflows"]), workflowId);
     }
     async updateWorkflowsIsSoftDeleted(processId, workflowId) {
-        return this.processBasicDataRepository.softDeleteByKey(processId, ['control_and_monitoring', 'workflows'], workflowId);
+        return this.processBasicDataRepository.softDeleteByKey(processId, (0, process_utils_1.findPath)(process_constants_1.PROCESS, process_constants_1.controlAndMonitoring["workflows"]), workflowId);
     }
 };
 exports.ProcessWorkflowService = ProcessWorkflowService;

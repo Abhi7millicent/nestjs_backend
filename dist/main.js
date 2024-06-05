@@ -30,7 +30,7 @@ async function bootstrap() {
     dotenv.config();
     const app = await core_1.NestFactory.create(app_module_1.AppModule);
     app.enableCors();
-    const port = process.env.PORT || 3000;
+    const port = process.env.PORT || 3236;
     await app.listen(port);
 }
 bootstrap();

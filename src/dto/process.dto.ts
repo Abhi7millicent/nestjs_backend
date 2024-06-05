@@ -1,4 +1,4 @@
-export class CreateActivityDto {
+export class ActivityDto {
     _id: string;
     sr_no: string;
     description: string;
@@ -7,6 +7,7 @@ export class CreateActivityDto {
     performed_where: string;
     value_calculation_logic: string;
     accounts_postings: string;
+    last_modified_by: string;
     is_deleted: boolean;
   }
 
@@ -20,6 +21,7 @@ export class CreateActivityDto {
   activity_id: string;
   automation_id: string;
   integration_scenario_id: string;
+  last_modified_by: string;
   is_deleted: boolean;
   }
 
