@@ -2,49 +2,67 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.GenericRepository = void 0;
 const common_1 = require("@nestjs/common");
+const error_message_1 = require("../error.handling/error.message");
 class GenericRepository {
     constructor(model) {
         this.model = model;
     }
     async create(entity) {
-        return this.model.create(entity);
+        try {
+            return await this.model.create(entity);
+        }
+        catch (error) {
+            throw new Error(error_message_1.ErrorMessage.NOT_CREATED);
+        }
     }
     async createByKey(id, keyPath, data) {
-        const value = await this.model.findById(id).exec();
-        if (!value) {
-            throw new common_1.NotFoundException('Main document not found');
+        try {
+            const value = await this.model.findById(id).exec();
+            if (!value) {
+                throw new common_1.NotFoundException(error_message_1.ErrorMessage.ID_NOT_FOUND(id));
+            }
+            let currentObj = value;
+            let updatePath = '';
+            for (const arrayName of keyPath) {
+                if (!currentObj[arrayName]) {
+                    throw new common_1.NotFoundException(error_message_1.ErrorMessage.KEY_NOT_FOUND(arrayName));
+                }
+                if (Array.isArray(currentObj[arrayName])) {
+                    currentObj[arrayName].push(data);
+                    updatePath = keyPath.slice(0, keyPath.indexOf(arrayName) + 1).join('.');
+                    break;
+                }
+                else if (typeof currentObj[arrayName] === 'object') {
+                    currentObj = currentObj[arrayName];
+                }
+                else {
+                    throw new Error(error_message_1.ErrorMessage.NOT_ARRAY_OR_OBJECT(arrayName));
+                }
+            }
+            if (!updatePath) {
+                throw new Error(error_message_1.ErrorMessage.ARRAY_NOT_FOUND(keyPath[keyPath.length - 1]));
+            }
+            value.markModified(updatePath);
+            await value.save();
+            const pushedPart = keyPath.reduce((obj, key) => obj[key], value);
+            return pushedPart[pushedPart.length - 1];
         }
-        let currentObj = value;
-        let updatePath = '';
-        for (const arrayName of keyPath) {
-            if (!currentObj[arrayName]) {
-                throw new common_1.NotFoundException(`Path not found: ${arrayName}`);
-            }
-            if (Array.isArray(currentObj[arrayName])) {
-                currentObj[arrayName].push(data);
-                updatePath = keyPath.slice(0, keyPath.indexOf(arrayName) + 1).join('.');
-                break;
-            }
-            else if (typeof currentObj[arrayName] === 'object') {
-                currentObj = currentObj[arrayName];
+        catch (error) {
+            if (error instanceof common_1.NotFoundException) {
+                console.error(error_message_1.ErrorMessage.NOT_FOUND, error.message);
+                throw error;
             }
             else {
-                throw new Error(`${arrayName} is not an array or an object`);
+                console.error(error_message_1.ErrorMessage.UNEXPECTED_ERROR, error.message);
+                throw error;
             }
         }
-        if (!updatePath) {
-            throw new Error(`Array ${keyPath[keyPath.length - 1]} not found or is not an array`);
-        }
-        value.markModified(updatePath);
-        await value.save();
-        const pushedPart = keyPath.reduce((obj, key) => obj[key], value);
-        return pushedPart[pushedPart.length - 1];
     }
     async update(criteria, update) {
         try {
             const result = await this.model.findOneAndUpdate(criteria, update, { new: true }).exec();
             if (!result) {
-                throw new common_1.NotFoundException('Document not found');
+                throw new common_1.NotFoundException(error_message_1.ErrorMessage.NOT_FOUND);
             }
             const responseDto = {
                 acknowledged: true,
@@ -56,156 +74,201 @@ class GenericRepository {
             return { updatedData: result, ...responseDto };
         }
         catch (error) {
-            throw new Error(`Error updating document: ${error}`);
+            throw new Error(error_message_1.ErrorMessage.NOT_UPDATED(error.message));
         }
     }
     async updateByKey(id, keyPath, subId, data) {
-        const value = await this.model.findById(id).exec();
-        if (!value) {
-            throw new common_1.NotFoundException('Main document not found');
-        }
-        let currentObj = value;
-        let parentObj = null;
-        let lastKey = '';
-        for (const key of keyPath) {
-            if (!currentObj[key]) {
-                throw new common_1.NotFoundException(`Path not found: ${key}`);
+        try {
+            const value = await this.model.findById(id).exec();
+            if (!value) {
+                throw new common_1.NotFoundException(error_message_1.ErrorMessage.ID_NOT_FOUND(id));
             }
-            parentObj = currentObj;
-            currentObj = currentObj[key];
-            lastKey = key;
+            let currentObj = value;
+            let parentObj = null;
+            let lastKey = '';
+            for (const key of keyPath) {
+                if (!currentObj[key]) {
+                    throw new common_1.NotFoundException(error_message_1.ErrorMessage.KEY_NOT_FOUND(key));
+                }
+                parentObj = currentObj;
+                currentObj = currentObj[key];
+                lastKey = key;
+            }
+            if (!Array.isArray(currentObj)) {
+                throw new Error(error_message_1.ErrorMessage.ARRAY_NOT_FOUND(keyPath.join('.')));
+            }
+            const subDocIndex = currentObj.findIndex((doc) => doc._id.toString() === subId);
+            if (subDocIndex === -1) {
+                throw new common_1.NotFoundException(error_message_1.ErrorMessage.NOT_FOUND);
+            }
+            const updatePath = [...keyPath, subDocIndex.toString()].join('.');
+            const updateObject = {
+                [`${updatePath}`]: { ...currentObj[subDocIndex], ...data },
+            };
+            return await this.model.updateOne({ _id: id }, { $set: updateObject }).exec();
         }
-        if (!Array.isArray(currentObj)) {
-            throw new Error(`The path does not point to an array: ${keyPath.join('.')}`);
+        catch (error) {
+            if (error instanceof common_1.NotFoundException) {
+                throw error;
+            }
+            else {
+                throw new Error(error_message_1.ErrorMessage.NOT_UPDATED(error.message));
+            }
         }
-        const subDocIndex = currentObj.findIndex((doc) => doc._id.toString() === subId);
-        if (subDocIndex === -1) {
-            throw new common_1.NotFoundException('Sub-document not found');
-        }
-        const updatePath = [...keyPath, subDocIndex.toString()].join('.');
-        const updateObject = {
-            [`${updatePath}`]: { ...currentObj[subDocIndex], ...data },
-        };
-        return await this.model.updateOne({ _id: id }, { $set: updateObject }).exec();
     }
     async delete(id) {
-        return this.model.findByIdAndDelete(id).exec();
+        try {
+            return await this.model.findByIdAndDelete(id).exec();
+        }
+        catch (error) {
+            throw error;
+        }
     }
     async deleteByKey(id, keyPath, subId) {
-        const value = await this.model.findById(id).exec();
-        if (!value) {
-            throw new common_1.NotFoundException('Main document not found');
-        }
-        let currentObj = value;
-        let updatePath = '';
-        for (const arrayName of keyPath) {
-            if (!currentObj[arrayName]) {
-                throw new common_1.NotFoundException(`Path not found: ${arrayName}`);
+        try {
+            const value = await this.model.findById(id).exec();
+            if (!value) {
+                throw new common_1.NotFoundException(error_message_1.ErrorMessage.ID_NOT_FOUND(id));
             }
-            if (Array.isArray(currentObj[arrayName])) {
-                const subDocIndex = currentObj[arrayName].findIndex((item) => item._id && item._id.toString() === subId);
-                if (subDocIndex !== -1) {
-                    currentObj[arrayName].splice(subDocIndex, 1);
-                    updatePath = keyPath.slice(0, keyPath.indexOf(arrayName) + 1).join('.');
-                    break;
+            let currentObj = value;
+            let updatePath = '';
+            for (const arrayName of keyPath) {
+                if (!currentObj[arrayName]) {
+                    throw new common_1.NotFoundException(error_message_1.ErrorMessage.KEY_NOT_FOUND(arrayName));
+                }
+                if (Array.isArray(currentObj[arrayName])) {
+                    const subDocIndex = currentObj[arrayName].findIndex((item) => item._id && item._id.toString() === subId);
+                    if (subDocIndex !== -1) {
+                        currentObj[arrayName].splice(subDocIndex, 1);
+                        updatePath = keyPath.slice(0, keyPath.indexOf(arrayName) + 1).join('.');
+                        break;
+                    }
+                    else {
+                        throw new common_1.NotFoundException(error_message_1.ErrorMessage.NOT_FOUND);
+                    }
+                }
+                else if (typeof currentObj[arrayName] === 'object') {
+                    currentObj = currentObj[arrayName];
                 }
                 else {
-                    throw new common_1.NotFoundException('Sub-document not found');
+                    throw new Error(error_message_1.ErrorMessage.NOT_ARRAY_OR_OBJECT(arrayName));
                 }
             }
-            else if (typeof currentObj[arrayName] === 'object') {
-                currentObj = currentObj[arrayName];
+            if (!updatePath) {
+                throw new Error(error_message_1.ErrorMessage.ARRAY_NOT_FOUND(keyPath[keyPath.length - 1]));
             }
-            else {
-                throw new Error(`${arrayName} is not an array or an object`);
-            }
+            value.markModified(updatePath);
+            await value.save();
+            return value;
         }
-        if (!updatePath) {
-            throw new Error(`Array ${keyPath[keyPath.length - 1]} not found or is not an array`);
+        catch (error) {
+            throw error;
         }
-        value.markModified(updatePath);
-        await value.save();
-        return value;
     }
     async softDelete(id) {
-        return this.model.findByIdAndUpdate(id, { deleted: true }, { new: true }).exec();
+        try {
+            return await this.model.findByIdAndUpdate(id, { deleted: true }, { new: true }).exec();
+        }
+        catch (error) {
+            throw error;
+        }
     }
     async softDeleteByKey(id, keyPath, subId) {
-        const value = await this.model.findById(id).exec();
-        if (!value) {
-            throw new common_1.NotFoundException('Main document not found');
-        }
-        let currentObj = value;
-        keyPath.forEach((arrayName, index) => {
-            if (!currentObj[arrayName]) {
-                throw new common_1.NotFoundException(`Path not found: ${arrayName}`);
+        try {
+            const value = await this.model.findById(id).exec();
+            if (!value) {
+                throw new common_1.NotFoundException(error_message_1.ErrorMessage.ID_NOT_FOUND(id));
             }
-            if (Array.isArray(currentObj[arrayName])) {
-                const subDocIndex = currentObj[arrayName].findIndex((item) => item._id && item._id.toString() === subId);
-                if (subDocIndex !== -1) {
-                    console.log("flg:", currentObj[arrayName][subDocIndex].is_deleted);
-                    currentObj[arrayName][subDocIndex].is_deleted = !currentObj[arrayName][subDocIndex].is_deleted;
-                    console.log("flg1:", currentObj[arrayName][subDocIndex].is_deleted);
-                    value.markModified(keyPath.slice(0, index + 1).join('.'));
-                    return;
+            let currentObj = value;
+            keyPath.forEach((arrayName, index) => {
+                if (!currentObj[arrayName]) {
+                    throw new common_1.NotFoundException(error_message_1.ErrorMessage.KEY_NOT_FOUND(arrayName));
+                }
+                if (Array.isArray(currentObj[arrayName])) {
+                    const subDocIndex = currentObj[arrayName].findIndex((item) => item._id && item._id.toString() === subId);
+                    if (subDocIndex !== -1) {
+                        console.log("flg:", currentObj[arrayName][subDocIndex].is_deleted);
+                        currentObj[arrayName][subDocIndex].is_deleted = !currentObj[arrayName][subDocIndex].is_deleted;
+                        console.log("flg1:", currentObj[arrayName][subDocIndex].is_deleted);
+                        value.markModified(keyPath.slice(0, index + 1).join('.'));
+                        return;
+                    }
+                    else {
+                        throw new common_1.NotFoundException(error_message_1.ErrorMessage.NOT_FOUND);
+                    }
+                }
+                else if (typeof currentObj[arrayName] === 'object') {
+                    currentObj = currentObj[arrayName];
                 }
                 else {
-                    throw new common_1.NotFoundException('Sub-document not found');
+                    throw new Error(error_message_1.ErrorMessage.NOT_ARRAY_OR_OBJECT(arrayName));
                 }
-            }
-            else if (typeof currentObj[arrayName] === 'object') {
-                currentObj = currentObj[arrayName];
-            }
-            else {
-                throw new Error(`${arrayName} is not an array or an object`);
-            }
-        });
-        await value.save();
-        return value;
+            });
+            await value.save();
+            return value;
+        }
+        catch (error) {
+            throw error;
+        }
     }
     async findAll(criteria = {}, options = {}) {
-        let query;
-        if (criteria) {
-            query = this.model.find(criteria);
+        try {
+            let query;
+            if (criteria) {
+                query = this.model.find(criteria);
+            }
+            else {
+                query = this.model.find();
+            }
+            if (options.sort) {
+                query = query.sort(options.sort);
+            }
+            if (options.limit !== undefined) {
+                query = query.limit(options.limit);
+            }
+            if (options.skip !== undefined) {
+                query = query.skip(options.skip);
+            }
+            if (options.select) {
+                query = query.select(options.select);
+            }
+            if (options.populate) {
+                query = query.populate(options.populate);
+            }
+            return await query.exec();
         }
-        else {
-            query = this.model.find();
+        catch (error) {
+            throw error;
         }
-        if (options.sort) {
-            query = query.sort(options.sort);
-        }
-        if (options.limit !== undefined) {
-            query = query.limit(options.limit);
-        }
-        if (options.skip !== undefined) {
-            query = query.skip(options.skip);
-        }
-        if (options.select) {
-            query = query.select(options.select);
-        }
-        if (options.populate) {
-            query = query.populate(options.populate);
-        }
-        return await query.exec();
     }
     async findById(id) {
-        return this.model.findById(id).exec();
+        try {
+            return this.model.findById(id).exec();
+        }
+        catch (error) {
+            throw error;
+        }
     }
     async findOne(criteria = {}, options = {}) {
-        let query;
-        if (criteria) {
-            query = this.model.findOne(criteria);
+        try {
+            let query;
+            if (criteria) {
+                query = this.model.findOne(criteria);
+            }
+            else {
+                query = this.model.findOne();
+            }
+            if (options.select) {
+                query = query.select(options.select);
+            }
+            if (options.populate) {
+                query = query.populate(options.populate);
+            }
+            return await query.exec();
         }
-        else {
-            query = this.model.findOne();
+        catch (error) {
+            throw error;
         }
-        if (options.select) {
-            query = query.select(options.select);
-        }
-        if (options.populate) {
-            query = query.populate(options.populate);
-        }
-        return await query.exec();
     }
     async restore(id) {
         return this.model.findByIdAndUpdate(id, { deleted: false }, { new: true }).exec();

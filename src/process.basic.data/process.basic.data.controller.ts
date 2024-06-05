@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Param, Body } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, HttpCode, HttpStatus, NotFoundException, HttpException } from '@nestjs/common';
 import { ProcessBasicDataService } from './process.basic.data.service';
 import { ProcessBasicData } from './process.basic.data.schema';
 import { AnalyticalDashboardsDto, ActivityDto, KpisDto, QueriesAndResponsesDto, ReportsDto, WorkflowsDto } from 'src/dto/process.dto';
@@ -46,8 +46,38 @@ export class ProcessBasicDataController {
   // }
 
   @Post('activities/:id')
-    async addActivity(@Param('id') id: string, @Body() activityDto: ActivityDto) {
-    return this.processActivityService.addActivity(id, activityDto);
+  @HttpCode(HttpStatus.CREATED) // Setting default success status code to 201 Created
+  async addActivity(@Param('id') id: string, @Body() activityDto: ActivityDto) {
+    try {
+      const data = await this.processActivityService.addActivity(id, activityDto);
+      return {
+        statusCode: HttpStatus.CREATED,
+        message: 'Activity created successfully',
+        data: data,
+      };
+    } catch (error) {
+      console.error('Error in addActivity controller method:', error.message);
+
+      // Handle specific known errors
+      if (error instanceof NotFoundException) {
+        throw new HttpException(
+          {
+            statusCode: HttpStatus.NOT_FOUND,
+            message: error.message,
+          },
+          HttpStatus.NOT_FOUND,
+        );
+      } else {
+        // Handle unexpected errors
+        throw new HttpException(
+          {
+            statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+            message: 'Internal server error',
+          },
+          HttpStatus.INTERNAL_SERVER_ERROR,
+        );
+      }
+    }
   }
 
   @Put(':processId/activities/:activityId')

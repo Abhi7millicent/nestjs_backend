@@ -1,6 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import { Model, FilterQuery, QueryOptions, PopulatedDoc } from 'mongoose';
 import { updateResponseDto } from 'src/dto/update.response.dto';
+import { ErrorMessage } from 'src/error.handling/error.message';
 
 interface FindAllOptions<T> extends QueryOptions {
     sort?: any;
@@ -19,8 +20,13 @@ export abstract class GenericRepository<T> {
      * @returns 
      */
     async create(entity: Partial<T>): Promise<T> {
-        return this.model.create(entity);
+      try {
+          return await this.model.create(entity);
+      } catch (error) {
+          throw new Error(ErrorMessage.NOT_CREATED);
+      }
     }
+  
 
     /**
      * The createByKey function is an asynchronous method designed to update a nested array within a MongoDB document using Mongoose. It performs the following tasks: This function allows dynamic and flexible updates to deeply nested arrays within documents.
@@ -33,43 +39,51 @@ export abstract class GenericRepository<T> {
       id: string,
       keyPath: string[],
       data: any,
-  ): Promise<any> {
-      const value = await this.model.findById(id).exec();
-      if (!value) {
-          throw new NotFoundException('Main document not found');
-      }
-      
-      let currentObj = value;
-      let updatePath = '';
-      
-      for (const arrayName of keyPath) {
-          if (!currentObj[arrayName]) {
-              throw new NotFoundException(`Path not found: ${arrayName}`);
+    ): Promise<any> {
+      try {
+          const value = await this.model.findById(id).exec();
+          if (!value) {
+              throw new NotFoundException(ErrorMessage.ID_NOT_FOUND(id));
           }
-          if (Array.isArray(currentObj[arrayName])) {
-              currentObj[arrayName].push(data);
-              updatePath = keyPath.slice(0, keyPath.indexOf(arrayName) + 1).join('.');
-              break;
-          } else if (typeof currentObj[arrayName] === 'object') {
-              currentObj = currentObj[arrayName];
+          
+          let currentObj = value;
+          let updatePath = '';
+          
+          for (const arrayName of keyPath) {
+              if (!currentObj[arrayName]) {
+                  throw new NotFoundException(ErrorMessage.KEY_NOT_FOUND(arrayName));
+              }
+              if (Array.isArray(currentObj[arrayName])) {
+                  currentObj[arrayName].push(data);
+                  updatePath = keyPath.slice(0, keyPath.indexOf(arrayName) + 1).join('.');
+                  break;
+              } else if (typeof currentObj[arrayName] === 'object') {
+                  currentObj = currentObj[arrayName];
+              } else {
+                  throw new Error(ErrorMessage.NOT_ARRAY_OR_OBJECT(arrayName));
+              }
+          }
+          
+          if (!updatePath) {
+              throw new Error(ErrorMessage.ARRAY_NOT_FOUND(keyPath[keyPath.length - 1]));
+          }
+          
+          value.markModified(updatePath);
+          await value.save();
+          
+          const pushedPart = keyPath.reduce((obj, key) => obj[key], value);
+          
+          return pushedPart[pushedPart.length - 1];
+      } catch (error) {
+          if (error instanceof NotFoundException) {
+              console.error(ErrorMessage.NOT_FOUND, error.message);
+              throw error; 
           } else {
-              throw new Error(`${arrayName} is not an array or an object`);
+              console.error(ErrorMessage.UNEXPECTED_ERROR, error.message);
+              throw error; 
           }
       }
-      
-      if (!updatePath) {
-          throw new Error(`Array ${keyPath[keyPath.length - 1]} not found or is not an array`);
-      }
-      
-      value.markModified(updatePath);
-      
-      await value.save();
-      
-      // Extract the part of the document that was pushed
-      const pushedPart = keyPath.reduce((obj, key) => obj[key], value);
-      
-      return pushedPart[pushedPart.length - 1];
-  }
+    }
   
 
     /**
@@ -83,7 +97,7 @@ export abstract class GenericRepository<T> {
         const result = await this.model.findOneAndUpdate(criteria, update, { new: true }).exec();
     
         if (!result) {
-          throw new NotFoundException('Document not found');
+          throw new NotFoundException(ErrorMessage.NOT_FOUND);
         } 
     
         const responseDto: updateResponseDto = {
@@ -96,7 +110,7 @@ export abstract class GenericRepository<T> {
         // console.log("data:", { updatedData: result, ...responseDto } )
         return { updatedData: result, ...responseDto };
       } catch (error) {
-        throw new Error(`Error updating document: ${error}`);
+        throw new Error(ErrorMessage.NOT_UPDATED(error.message));
       }
     }
     
@@ -114,45 +128,53 @@ export abstract class GenericRepository<T> {
       subId: string,
       data: any,
     ): Promise<any> {
-      const value = await this.model.findById(id).exec();
-      if (!value) {
-        throw new NotFoundException('Main document not found');
-      }
-    
-      let currentObj: any = value;
-      let parentObj: any = null;
-      let lastKey: string = '';
-    
-      for (const key of keyPath) {
-        if (!currentObj[key]) {
-          throw new NotFoundException(`Path not found: ${key}`);
+      try {
+        const value = await this.model.findById(id).exec();
+        if (!value) {
+          throw new NotFoundException(ErrorMessage.ID_NOT_FOUND(id));
         }
-        parentObj = currentObj;
-        currentObj = currentObj[key];
-        lastKey = key;
-      }
-    
-      if (!Array.isArray(currentObj)) {
-        throw new Error(`The path does not point to an array: ${keyPath.join('.')}`);
-      }
-    
-      const subDocIndex = currentObj.findIndex((doc: any) => doc._id.toString() === subId);
-      if (subDocIndex === -1) {
-        throw new NotFoundException('Sub-document not found');
-      }
-    
-      const updatePath = [...keyPath, subDocIndex.toString()].join('.');
-      const updateObject = {
-        [`${updatePath}`]: { ...currentObj[subDocIndex], ...data },
-      };
-    
       
-      return await this.model.updateOne({ _id: id }, { $set: updateObject as any}).exec();
-    
-
-      // const updatedValue = await this.model.findById(id).exec();
-      // return updatedValue;
+        let currentObj: any = value;
+        let parentObj: any = null;
+        let lastKey: string = '';
+      
+        for (const key of keyPath) {
+          if (!currentObj[key]) {
+            throw new NotFoundException(ErrorMessage.KEY_NOT_FOUND(key));
+          }
+          parentObj = currentObj;
+          currentObj = currentObj[key];
+          lastKey = key;
+        }
+      
+        if (!Array.isArray(currentObj)) {
+          throw new Error(ErrorMessage.ARRAY_NOT_FOUND(keyPath.join('.')));
+        }
+      
+        const subDocIndex = currentObj.findIndex((doc: any) => doc._id.toString() === subId);
+        if (subDocIndex === -1) {
+          throw new NotFoundException(ErrorMessage.NOT_FOUND);
+        }
+      
+        const updatePath = [...keyPath, subDocIndex.toString()].join('.');
+        const updateObject = {
+          [`${updatePath}`]: { ...currentObj[subDocIndex], ...data },
+        };
+      
+        return await this.model.updateOne({ _id: id }, { $set: updateObject as any}).exec();
+      
+        // Optionally, you can return the updated document here
+        // const updatedValue = await this.model.findById(id).exec();
+        // return updatedValue;
+      } catch (error) {
+        if (error instanceof NotFoundException) {
+          throw error;
+        } else {
+          throw new Error(ErrorMessage.NOT_UPDATED(error.message));
+        }
+      }
     }
+    
     
 
     /**
@@ -161,7 +183,11 @@ export abstract class GenericRepository<T> {
      * @returns 
      */
     async delete(id: string): Promise<T> {
-      return this.model.findByIdAndDelete(id).exec();
+      try {
+        return await this.model.findByIdAndDelete(id).exec();
+      } catch (error) {
+        throw error; 
+      }
     }
 
     /**
@@ -177,44 +203,49 @@ export abstract class GenericRepository<T> {
       keyPath: string[],
       subId: string,
     ): Promise<any> {
-      const value = await this.model.findById(id).exec();
-      if (!value) {
-        throw new NotFoundException('Main document not found');
-      }
-    
-      let currentObj = value;
-      let updatePath = '';
-    
-      for (const arrayName of keyPath) {
-        if (!currentObj[arrayName]) {
-          throw new NotFoundException(`Path not found: ${arrayName}`);
+      try {
+        const value = await this.model.findById(id).exec();
+        if (!value) {
+          throw new NotFoundException(ErrorMessage.ID_NOT_FOUND(id));
         }
-        if (Array.isArray(currentObj[arrayName])) {
-          const subDocIndex = currentObj[arrayName].findIndex((item: any) => item._id && item._id.toString() === subId);
-          if (subDocIndex !== -1) {
-            currentObj[arrayName].splice(subDocIndex, 1); 
-            updatePath = keyPath.slice(0, keyPath.indexOf(arrayName) + 1).join('.');
-            break;
-          } else {
-            throw new NotFoundException('Sub-document not found');
+      
+        let currentObj = value;
+        let updatePath = '';
+      
+        for (const arrayName of keyPath) {
+          if (!currentObj[arrayName]) {
+            throw new NotFoundException(ErrorMessage.KEY_NOT_FOUND(arrayName));
           }
-        } else if (typeof currentObj[arrayName] === 'object') {
-          currentObj = currentObj[arrayName];
-        } else {
-          throw new Error(`${arrayName} is not an array or an object`);
+          if (Array.isArray(currentObj[arrayName])) {
+            const subDocIndex = currentObj[arrayName].findIndex((item: any) => item._id && item._id.toString() === subId);
+            if (subDocIndex !== -1) {
+              currentObj[arrayName].splice(subDocIndex, 1); 
+              updatePath = keyPath.slice(0, keyPath.indexOf(arrayName) + 1).join('.');
+              break;
+            } else {
+              throw new NotFoundException(ErrorMessage.NOT_FOUND);
+            }
+          } else if (typeof currentObj[arrayName] === 'object') {
+            currentObj = currentObj[arrayName];
+          } else {
+            throw new Error(ErrorMessage.NOT_ARRAY_OR_OBJECT(arrayName));
+          }
         }
+      
+        if (!updatePath) {
+          throw new Error(ErrorMessage.ARRAY_NOT_FOUND(keyPath[keyPath.length - 1]));
+        }
+      
+        value.markModified(updatePath);
+      
+        await value.save();
+      
+        return value;
+      } catch (error) {
+        throw error; 
       }
-    
-      if (!updatePath) {
-        throw new Error(`Array ${keyPath[keyPath.length - 1]} not found or is not an array`);
-      }
-    
-      value.markModified(updatePath);
-    
-      await value.save();
-    
-      return value;
     }
+    
 
     /**
      * The async softDelete method marks a document as deleted in a MongoDB database using Mongoose without actually removing it. Here’s a concise description of its functionality:
@@ -222,8 +253,14 @@ export abstract class GenericRepository<T> {
      * @returns 
      */
     async softDelete(id: string): Promise<T> {
-      return this.model.findByIdAndUpdate(id, { deleted: true }, { new: true }).exec();
+      try {
+        return await this.model.findByIdAndUpdate(id, { deleted: true }, { new: true }).exec();
+      } catch (error) {
+        // console.error(ErrorMessage.NOT_UPDATED(error.message));
+        throw error;
+      }
     }
+    
 
     /**
      * The async softDeleteByKey method toggles the is_deleted status of a sub-document within a nested array in a main document in a MongoDB database using Mongoose. Here’s a concise description of its functionality:
@@ -236,41 +273,46 @@ export abstract class GenericRepository<T> {
       id: string,
       keyPath: string[],
       subId: string,
-      ): Promise<any> {
-      const value = await this.model.findById(id).exec();
-      if (!value) {
-        throw new NotFoundException('Main document not found');
-      }
-    
-      let currentObj = value;
-    
-      keyPath.forEach((arrayName, index) => {
-        if (!currentObj[arrayName]) {
-          throw new NotFoundException(`Path not found: ${arrayName}`);
+    ): Promise<any> {
+      try {
+        const value = await this.model.findById(id).exec();
+        if (!value) {
+          throw new NotFoundException(ErrorMessage.ID_NOT_FOUND(id));
         }
-        if (Array.isArray(currentObj[arrayName])) {
-          const subDocIndex = currentObj[arrayName].findIndex((item: any) => item._id && item._id.toString() === subId);
-          if (subDocIndex !== -1) {
-            console.log("flg:",currentObj[arrayName][subDocIndex].is_deleted);
-            currentObj[arrayName][subDocIndex].is_deleted = !currentObj[arrayName][subDocIndex].is_deleted;
-            console.log("flg1:",currentObj[arrayName][subDocIndex].is_deleted);
-            value.markModified(keyPath.slice(0, index + 1).join('.'));
-            return;
-          } else {
-            throw new NotFoundException('Sub-document not found');
+    
+        let currentObj = value;
+    
+        keyPath.forEach((arrayName, index) => {
+          if (!currentObj[arrayName]) {
+            throw new NotFoundException(ErrorMessage.KEY_NOT_FOUND(arrayName));
           }
-        } else if (typeof currentObj[arrayName] === 'object') {
-          currentObj = currentObj[arrayName];
-        } else {
-          throw new Error(`${arrayName} is not an array or an object`);
-        }
-      });
+          if (Array.isArray(currentObj[arrayName])) {
+            const subDocIndex = currentObj[arrayName].findIndex((item: any) => item._id && item._id.toString() === subId);
+            if (subDocIndex !== -1) {
+              console.log("flg:", currentObj[arrayName][subDocIndex].is_deleted);
+              currentObj[arrayName][subDocIndex].is_deleted = !currentObj[arrayName][subDocIndex].is_deleted;
+              console.log("flg1:", currentObj[arrayName][subDocIndex].is_deleted);
+              value.markModified(keyPath.slice(0, index + 1).join('.'));
+              return;
+            } else {
+              throw new NotFoundException(ErrorMessage.NOT_FOUND);
+            }
+          } else if (typeof currentObj[arrayName] === 'object') {
+            currentObj = currentObj[arrayName];
+          } else {
+            throw new Error(ErrorMessage.NOT_ARRAY_OR_OBJECT(arrayName));
+          }
+        });
     
     
-      await value.save();
+        await value.save();
     
-      return value;
+        return value;
+      } catch (error) {
+        throw error; 
+      }
     }
+    
 
     /**
      * The async findAll method retrieves documents from a MongoDB database using Mongoose, based on optional criteria and query options. Here’s a concise description of its functionality:
@@ -279,31 +321,36 @@ export abstract class GenericRepository<T> {
      * @returns 
      */
     async findAll(criteria: FilterQuery<T> = {}, options: FindAllOptions<T> = {}): Promise<T[]> {
+      try {
         let query: any;
-
+    
         if (criteria) {
-            query = this.model.find(criteria);
+          query = this.model.find(criteria);
         } else {
-            query = this.model.find();
+          query = this.model.find();
         }
-
+    
         if (options.sort) {
-            query = query.sort(options.sort);
+          query = query.sort(options.sort);
         }
         if (options.limit !== undefined) {
-            query = query.limit(options.limit);
+          query = query.limit(options.limit);
         }
         if (options.skip !== undefined) {
-            query = query.skip(options.skip);
+          query = query.skip(options.skip);
         }
         if (options.select) {
-            query = query.select(options.select);
+          query = query.select(options.select);
         }
         if (options.populate) {
-            query = query.populate(options.populate);
+          query = query.populate(options.populate);
         }
-        return await query.exec(); // Ensure await is used here
+        return await query.exec(); 
+      } catch (error) {
+        throw error; 
+      }
     }
+    
 
     /**
      * The async findById method retrieves a single document from a MongoDB database using Mongoose by its id. Here’s a concise description of its functionality:
@@ -311,7 +358,11 @@ export abstract class GenericRepository<T> {
      * @returns 
      */
     async findById(id: string): Promise<T> {
+      try{
         return this.model.findById(id).exec();
+      } catch (error) {
+        throw error; 
+      }
     }
 
     /**
@@ -321,7 +372,8 @@ export abstract class GenericRepository<T> {
      * @returns 
      */
     async findOne(criteria: FilterQuery<T> = {}, options: FindAllOptions<T> = {}): Promise<T | null> {
-      let query: any;
+      try{
+        let query: any;
   
       if (criteria) {
           query = this.model.findOne(criteria);
@@ -335,7 +387,11 @@ export abstract class GenericRepository<T> {
       if (options.populate) {
           query = query.populate(options.populate);
       }
-      return await query.exec(); // Ensure await is used here
+      return await query.exec(); 
+      } catch (error) {
+        throw error; 
+      }
+      
   }
 
     async restore(id: string): Promise<T> {

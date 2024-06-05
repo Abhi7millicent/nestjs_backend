@@ -46,14 +46,25 @@ let ProcessActivityService = class ProcessActivityService {
             last_modified_on: new Date()
         };
         delete activityDto.last_modified_by;
-        const data = await this.processBasicDataRepository.createByKey(processId, (0, process_utils_1.findPath)(process_constants_1.PROCESS, "activities"), activityDto);
-        if (data._id === activityDto._id) {
-            const updateResponseDto = await this.processBasicDataRepository.update({ _id: processId }, auditData);
-            console.log("updateMetaData:", updateResponseDto);
+        try {
+            const data = await this.processBasicDataRepository.createByKey(processId, (0, process_utils_1.findPath)(process_constants_1.PROCESS, 'activities'), activityDto);
+            if (data._id === activityDto._id) {
+                const updateResponseDto = await this.processBasicDataRepository.update({ _id: processId }, auditData);
+                console.log('updateMetaData:', updateResponseDto);
+            }
+            return data;
         }
-        return data;
+        catch (error) {
+            if (error instanceof common_1.NotFoundException) {
+                console.error('Not Found Exception:', error.message);
+                throw error;
+            }
+            else {
+                console.error('Unexpected Error:', error.message);
+                throw error;
+            }
+        }
     }
-    ;
 };
 exports.ProcessActivityService = ProcessActivityService;
 exports.ProcessActivityService = ProcessActivityService = __decorate([

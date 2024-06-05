@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, NotFoundException } from "@nestjs/common";
 import { ProcessBasicDataRepository } from "./process.basic.data.repository";
 import { ActivityDto } from "src/dto/process.dto";
 import { PROCESS } from "src/constants/process.constants";
@@ -61,31 +61,43 @@ export class ProcessActivityService {
 
       async addActivity(
         processId: string,
-         activityDto: ActivityDto
-        ): Promise<any> {
+        activityDto: ActivityDto
+    ): Promise<any> {
         activityDto._id = generateId('activity_');
-
+    
         const auditData = {
-          last_modified_by: activityDto.last_modified_by,
-          last_modified_on: new Date()
+            last_modified_by: activityDto.last_modified_by,
+            last_modified_on: new Date()
         };
-
+    
         delete activityDto.last_modified_by;
-        const data = await this.processBasicDataRepository.createByKey(
-            processId,
-            findPath(PROCESS, "activities"),
-            activityDto,
-        )
-        if (data._id === activityDto._id) {
-          const updateResponseDto = await this.processBasicDataRepository.update(
-               { _id: processId },
-               auditData
-           );
-           console.log("updateMetaData:", updateResponseDto);
+    
+        try {
+            const data = await this.processBasicDataRepository.createByKey(
+                processId,
+                findPath(PROCESS, 'activities'),
+                activityDto,
+            );
+    
+            if (data._id === activityDto._id) {
+                const updateResponseDto = await this.processBasicDataRepository.update(
+                    { _id: processId },
+                    auditData
+                );
+                console.log('updateMetaData:', updateResponseDto);
+            }
+    
+            return data;
+        } catch (error) {
+            if (error instanceof NotFoundException) {
+                console.error('Not Found Exception:', error.message);
+                throw error; 
+            } else {
+                console.error('Unexpected Error:', error.message);
+                throw error; 
+            }
         }
-       
-          return data;
-        };
+    }
     
     // async addActivity(processId: string, activityDto: activityDto): Promise<ProcessBasicData> {
     //     activityDto._id = 'activity_' + Math.random().toString(36).substring(2, 11);

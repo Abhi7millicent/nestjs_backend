@@ -1,3 +1,4 @@
+import { HttpStatus } from '@nestjs/common';
 import { ProcessBasicDataService } from './process.basic.data.service';
 import { ProcessBasicData } from './process.basic.data.schema';
 import { ActivityDto, WorkflowsDto } from 'src/dto/process.dto';
@@ -13,7 +14,11 @@ export declare class ProcessBasicDataController {
     getById(id: string): Promise<ProcessBasicData>;
     update(id: string, data: Partial<ProcessBasicData>): Promise<ProcessBasicData>;
     delete(id: string): Promise<ProcessBasicData>;
-    addActivity(id: string, activityDto: ActivityDto): Promise<any>;
+    addActivity(id: string, activityDto: ActivityDto): Promise<{
+        statusCode: HttpStatus;
+        message: string;
+        data: any;
+    }>;
     updateActivity(processId: string, activityId: string, activityData: any): Promise<any>;
     updateActivityIsDeleted(processId: string, activityId: string): Promise<any>;
     updateActivityIsSoftDeleted(processId: string, activityId: string): Promise<any>;
