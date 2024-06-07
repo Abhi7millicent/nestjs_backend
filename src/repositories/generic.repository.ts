@@ -113,6 +113,24 @@ export abstract class GenericRepository<T> {
         throw new Error(ErrorMessage.NOT_UPDATED(error.message));
       }
     }
+
+    // async update(criteria: FilterQuery<T>, update: Partial<T>): Promise<updateResponseDto> {
+    //   try {
+    //       const result = await this.model.updateOne(criteria, update).exec();
+  
+    //       const responseDto: updateResponseDto = {
+    //           acknowledged: result.acknowledged,
+    //           modifiedCount: result.modifiedCount,
+    //           upsertedId: result.upsertedId ? result.upsertedId.toString() : null,
+    //           upsertedCount: result.upsertedCount || 0,
+    //           matchedCount: result.matchedCount
+    //       };
+  
+    //       return responseDto;
+    //   } catch (error) {
+    //       throw new Error(`Error updating document: ${error}`);
+    //   }
+    // }
     
 
     /** This async updateByKey method updates a sub-document within a nested document structure in a MongoDB database using Mongoose. Here’s a concise breakdown of its functionality:
@@ -398,9 +416,75 @@ export abstract class GenericRepository<T> {
       return this.model.findByIdAndUpdate(id, { deleted: false }, { new: true }).exec();
     }
 
-    // async findOne(criteria: FilterQuery<T>): Promise<T | null> {
-    //     return this.model.findOne(criteria).exec();
-    // }
+    async findAllParam(
+      criteria: any = {},
+      sort: any = {},
+      limit?: number,
+      select?: string,
+      skip?: number,
+      populate?: string | QueryOptions
+    ): Promise<Array<PopulatedDoc<T>>> {
+      try {
+        let query = this.model.find(criteria);
+  
+        if (sort) {
+          query = query.sort(sort);
+        }
+  
+        if (limit) {
+          query = query.limit(limit);
+        }
+
+        if (select) {
+          query = query.select(select);
+        }
+  
+        if (skip) {
+          query = query.skip(skip);
+        }
+  
+        if (populate) {
+          query = query.populate(populate);
+        }
+  
+        const results = await query.exec();
+        return results;
+      } catch (error) {
+        throw new Error(`Error fetching documents: ${error}`);
+      }
+  }
+
+  async findOneOrFailParam(
+      criteria: any = {},
+      select?: string,
+      populate?: string | QueryOptions
+    ): Promise<PopulatedDoc<T>> {
+      try {
+        let query: any;
+  
+        if (criteria) {
+          query = this.model.findOne(criteria);
+        } else {
+          query = this.model.findOne();
+        }
+  
+        if (select) {
+          query = query.select(select);
+        }
+  
+        if (populate) {
+          query = query.populate(populate);
+        }
+  
+        const result = await query.exec();
+        if (!result) {
+          throw new Error('Document not found');
+        }
+        return result;
+      } catch (error) {
+        throw new Error(`Error fetching document: ${error}`);
+      }
+    }
 
     
 
@@ -469,75 +553,7 @@ export abstract class GenericRepository<T> {
         return this.findAll(criteria, options); // Correctly calls findAll with options
     }
 
-    async findAllParam(
-        criteria: any = {},
-        sort: any = {},
-        limit?: number,
-        select?: string,
-        skip?: number,
-        populate?: string | QueryOptions
-      ): Promise<Array<PopulatedDoc<T>>> {
-        try {
-          let query = this.model.find(criteria);
-    
-          if (sort) {
-            query = query.sort(sort);
-          }
-    
-          if (limit) {
-            query = query.limit(limit);
-          }
 
-          if (select) {
-            query = query.select(select);
-          }
-    
-          if (skip) {
-            query = query.skip(skip);
-          }
-    
-          if (populate) {
-            query = query.populate(populate);
-          }
-    
-          const results = await query.exec();
-          return results;
-        } catch (error) {
-          throw new Error(`Error fetching documents: ${error}`);
-        }
-    }
-
-    async findOneOrFailParam(
-        criteria: any = {},
-        select?: string,
-        populate?: string | QueryOptions
-      ): Promise<PopulatedDoc<T>> {
-        try {
-          let query: any;
-    
-          if (criteria) {
-            query = this.model.findOne(criteria);
-          } else {
-            query = this.model.findOne();
-          }
-    
-          if (select) {
-            query = query.select(select);
-          }
-    
-          if (populate) {
-            query = query.populate(populate);
-          }
-    
-          const result = await query.exec();
-          if (!result) {
-            throw new Error('Document not found');
-          }
-          return result;
-        } catch (error) {
-          throw new Error(`Error fetching document: ${error}`);
-        }
-      }
 
       // async softDeleteByKey(
       //   id: string,
@@ -851,3 +867,6 @@ export abstract class GenericRepository<T> {
 }
 
 
+ // async findOne(criteria: FilterQuery<T>): Promise<T | null> {
+    //     return this.model.findOne(criteria).exec();
+    // }
